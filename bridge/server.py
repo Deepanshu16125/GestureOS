@@ -51,6 +51,8 @@ class Controller:
         self.watchdog = watchdog  # seconds of silence before auto-pause; 0 disables
         self.last_seen = self.clock()
         self.armed = False  # True once input was applied since the last pause
+        self.last_input = self.clock()  # last real input message (pings do not count)
+        self.broadcast = None  # set by serve(): send a dict to every client
 
     @property
     def dry_run(self):
@@ -108,6 +110,7 @@ class Controller:
 
         try:
             self.armed = True
+            self.last_input = self.clock()
             self._apply(m)
         except Exception as e:
             if type(e).__name__ == "FailSafeException":
@@ -117,14 +120,32 @@ class Controller:
             return error("backend_error", str(e), ref)
         return None  # input commands are fire-and-forget
 
+    def held_buttons(self):
+        return set(getattr(self.backend, "held", ()) or ())
+
     def check_watchdog(self) -> bool:
-        """Pause if input was active and nothing arrived for `watchdog` seconds."""
-        if (self.watchdog and self.armed and not self.killed
-                and self.clock() - self.last_seen > self.watchdog):
+        """Pause if input was active and nothing arrived for `watchdog` seconds, or if a
+        button is held while no input (only pings) arrives: a page that switched mode
+        mid-drag keeps pinging, and must not leave the OS mouse stuck down."""
+        if not self.watchdog or self.killed:
+            return False
+        now = self.clock()
+        if self.armed and now - self.last_seen > self.watchdog:
             self.kill()
             log.warning("Watchdog: no messages for %.1fs; paused", self.watchdog)
             return True
+        if self.held_buttons() and now - self.last_input > self.watchdog:
+            self.kill()
+            log.warning("Watchdog: button held with no input for %.1fs; released and paused", self.watchdog)
+            return True
         return False
+
+    def emergency_stop(self, source="hotkey"):
+        """Global kill from outside the browser (pynput Esc/F9 listener)."""
+        self.kill()
+        log.warning("EMERGENCY STOP (%s): buttons released, input paused", source)
+        if self.broadcast:
+            self.broadcast({"type": "state", "killed": True, "reason": source})
 
     def _apply(self, m):
         b, t = self.backend, m["type"]
@@ -175,6 +196,8 @@ async def serve(controller, host="127.0.0.1", port=8765, origins=None):
                 pass
             log.info("client disconnected")
 
+    controller.broadcast = lambda msg: websockets.broadcast(clients, json.dumps(msg))
+
     async def watchdog_loop():
         while True:
             await asyncio.sleep(0.1)
@@ -208,6 +231,7 @@ def parse_args(argv=None):
     p.add_argument("--rate", type=float, default=120, help="max messages per second (default 120)")
     p.add_argument("--allow-origin", action="append", default=None,
                    help="extra allowed browser Origin (repeatable, '*' allows any)")
+    p.add_argument("--no-hotkey", action="store_true", help="disable the global Esc/F9 emergency stop")
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -225,6 +249,13 @@ def main(argv=None):
 
     async def run():
         server = await serve(ctl, a.host, a.port, origins)
+        loop = asyncio.get_running_loop()
+        if not a.no_hotkey and hasattr(backend, "start_hotkey"):
+            try:
+                backend.start_hotkey(lambda name: loop.call_soon_threadsafe(ctl.emergency_stop, name))
+                log.info("Emergency stop: press Esc or F9 anywhere (global hotkey)")
+            except Exception as e:
+                log.warning("Global emergency-stop hotkey unavailable: %s", e)
         log.info("GestureOS bridge on ws://%s:%d  backend=%s  smoothing=%.2f  %s",
                  a.host, a.port, backend.name, ctl.smoother.alpha,
                  "active" if not ctl.killed else "paused (send resume)")

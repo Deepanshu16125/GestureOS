@@ -14,6 +14,7 @@ class DryRunBackend:
     def __init__(self, size=(1920, 1080)):
         self.size = size
         self.calls: list[tuple] = []
+        self.held: set[str] = set()
 
     def screen_size(self):
         return self.size
@@ -28,10 +29,12 @@ class DryRunBackend:
 
     def mouse_down(self, button):
         self.calls.append(("mouseDown", button))
+        self.held.add(button)
         log.info("dry-run mouseDown %s", button)
 
     def mouse_up(self, button):
         self.calls.append(("mouseUp", button))
+        self.held.discard(button)
         log.info("dry-run mouseUp %s", button)
 
     def scroll(self, dx, dy):
@@ -45,6 +48,9 @@ class DryRunBackend:
 
     def release_all(self):
         self.calls.append(("releaseAll",))
+        if self.held:
+            log.info("dry-run releaseAll %s", sorted(self.held))
+        self.held.clear()
 
 
 class PyAutoGUIBackend:
@@ -157,6 +163,20 @@ class PynputBackend:
         for b in list(self.held):
             self.mouse.release(getattr(self.Button, b))
         self.held.clear()
+
+    def start_hotkey(self, on_stop):
+        """Global emergency stop: Esc or F9 pressed in ANY window calls on_stop(name).
+        Runs in pynput's own listener thread; on_stop must be thread-safe."""
+        from pynput import keyboard
+        stop_keys = {keyboard.Key.esc: "Esc", keyboard.Key.f9: "F9"}
+
+        def on_press(key):
+            if key in stop_keys:
+                on_stop("hotkey " + stop_keys[key])
+
+        self._listener = keyboard.Listener(on_press=on_press, daemon=True)
+        self._listener.start()
+        return self._listener
 
 
 def _screen_size():

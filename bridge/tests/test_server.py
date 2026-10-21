@@ -140,10 +140,10 @@ def test_watchdog_pauses_and_releases_with_fake_clock():
     assert not ctl.check_watchdog()
     send(ctl, s, {"type": "mouseDown"})
     t[0] = 11.0
-    send(ctl, s, {"type": "ping"})  # keepalive resets the timer
-    t[0] = 12.4
+    send(ctl, s, {"type": "ping"})  # pings keep the link alive...
+    t[0] = 11.4
     assert not ctl.check_watchdog()
-    t[0] = 12.6
+    t[0] = 11.6  # ...but a held button with no input for 1.5 s is released (stuck-mouse fix)
     assert ctl.check_watchdog()
     assert ctl.killed and ctl.backend.calls[-1] == ("releaseAll",)
     assert not ctl.check_watchdog()  # fires once

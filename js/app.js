@@ -14,7 +14,7 @@ const tune=()=>{cursorF.set(+$('minCutoff').value,+$('beta').value);$('minCutoff
 const EMO={open_palm:'🖐 Open Palm',fist:'✊ Fist',point:'☝️ Point',pinch:'🤏 Pinch',thumbs_up:'👍 Thumbs Up',thumbs_down:'👎 Thumbs Down',peace:'✌️ Peace',rock:'🤘 Rock',unknown:'❔ Unknown',none:'— No hand'};
 const log=m=>{const li=document.createElement('li');li.textContent=new Date().toLocaleTimeString()+'  '+m;$('log').prepend(li);while($('log').children.length>40)$('log').lastChild.remove();};
 // Tabs
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;document.body.classList.toggle('drawer-open',mode==='train');document.querySelectorAll('.mode').forEach(m=>m.classList.add('hidden'));$('mode-'+mode).classList.remove('hidden');log('Mode → '+mode);});
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(b.dataset.mode!==mode&&typeof pauseOS==='function')pauseOS('mode change');mode=b.dataset.mode;document.body.classList.toggle('drawer-open',mode==='train');document.querySelectorAll('.mode').forEach(m=>m.classList.add('hidden'));$('mode-'+mode).classList.remove('hidden');log('Mode → '+mode);});
 // Drawer (trainer) + bezel clocks
 const tab=m=>document.querySelector(`#tabs button[data-mode="${m}"]`).click();
 $('drawerBtn').onclick=()=>tab(mode==='train'?'cursor':'train');$('drawerClose').onclick=()=>tab('cursor');
@@ -129,7 +129,8 @@ $('resetBtn').onclick=()=>{if(confirm('Delete all custom gestures?')){knn.reset(
 $('exportBtn').onclick=()=>{const a=document.createElement('a');a.download='gestureos-model.json';a.href=URL.createObjectURL(new Blob([knn.export()]));a.click();};
 $('importFile').onchange=async e=>{try{knn.import(await e.target.files[0].text());renderClasses();log('Model imported');}catch(err){alert(err.message);}};
 function handleMode(g,lm){if(mode==='cursor')airMouse(g,lm);else if(mode==='draw')airDraw(g,lm);else if(mode==='slides')slides(g,lm);else if(mode==='sign')sign(lm);else if(mode==='os')osControl(g,lm);
-  if(mode==='cursor'&&osToggle.checked)osControl(g,lm);}
+  if(mode==='cursor'&&osToggle.checked)osControl(g,lm);
+  if(mouseIsDown&&!OS_MODES.has(mode))releaseMouse(true);}
 
 // ---------- HUD, legend, pinch meter, click ring
 const LEGEND={cursor:[['☝️','Point','move cursor'],['🤏','Pinch','click (hold = press)']],
@@ -155,7 +156,8 @@ document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',
 const bridge=new BridgeClient();
 const killBtn=$('killBtn'),osToggle=$('osEnable');
 let bridgeState='disconnected',pauseReason='';
-const controlling=()=>bridge.ready&&!bridge.killed&&osToggle.checked;
+const OS_MODES=new Set(['cursor','os']);
+const controlling=()=>bridge.ready&&!bridge.killed&&osToggle.checked&&OS_MODES.has(mode);
 function renderChip(){const c=$('bridgeChip');let cls='off',t='NO BRIDGE';
   if(bridgeState==='connecting'){cls='connecting';t='CONNECTING…';}
   else if(bridge.ready){if(controlling()){cls='live';t='CONNECTED · LIVE';}else if(osToggle.checked){cls='connecting';t='RESUMING…';}else{cls='paused';t='CONNECTED · PAUSED'+(pauseReason?' ('+pauseReason+')':'');}}
@@ -177,27 +179,29 @@ $('bridgeConnect').onclick=()=>bridge.connect($('bridgeUrl').value.trim());
 $('bridgeDisconnect').onclick=()=>{pauseOS(null);bridge.disconnect();};
 killBtn.onclick=()=>pauseOS('KILL button');
 // Open palm 2 s toggles control: pause if live, re-enable if paused.
-function toggleKill(){if(!bridge.ready)return log('Bridge not connected');if(controlling())pauseOS('palm');else{osToggle.checked=true;osToggle.onchange();}}
-window.addEventListener('keydown',e=>{if(e.key==='Escape')pauseOS('Esc');});
+function toggleKill(){if(osToggle.checked||mouseIsDown)pauseOS('palm 2 s');}
+window.addEventListener('keydown',e=>{if(e.key==='Escape'||e.key==='F9'){e.preventDefault();pauseOS(e.key);}},true);
+window.addEventListener('blur',()=>pauseOS('window blur'));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseOS('tab hidden');});
 window.addEventListener('beforeunload',()=>{releaseMouse(true);bridge.disconnect(true);});
 let mouseIsDown=false,scrollY=null,scrollAcc=0,palmStart=0,palmFired=false,fistStart=0;
 const osAct=a=>$('osAction').textContent=a;
-function releaseMouse(send){if(mouseIsDown){if(send&&bridge.ready)bridge.raw({type:'mouseUp',button:'left'});mouseIsDown=false;}}
+function releaseMouse(send){if(mouseIsDown){if(send&&bridge.ready)bridge.raw({type:'mouseUp',button:'left'});mouseIsDown=false;osAct('released');}}
 /** Release any held button, send kill (bridge pauses + releases), toggle off. reason=null → silent. */
 function pauseOS(reason){releaseMouse(true);const was=osToggle.checked;osToggle.checked=false;
-  if(bridge.ready&&!bridge.killed)bridge.kill();if(reason){pauseReason=reason;if(was)log('OS control paused ('+reason+')');}osAct('paused');renderChip();}
+  if(bridge.connected)bridge.kill();pinch.reset();scrollY=null;if(reason){pauseReason=reason;if(was)log('OS control paused ('+reason+')');}osAct('paused');renderChip();}
 function osControl(g,lm){
   const now=performance.now();
   // Open palm held 2 s → bridge kill/resume (works while paused or killed).
   if(g==='open_palm'){if(!palmStart){palmStart=now;palmFired=false;}const f=Math.min(1,(now-palmStart)/2000);$('palmProg').style.width=f*100+'%';
     if(f>=1&&!palmFired){palmFired=true;toggleKill();}}else{palmStart=0;$('palmProg').style.width='0';}
   // Fist held 1 s → pause.
-  if(g==='fist'){if(!fistStart)fistStart=now;else if(now-fistStart>1000&&osToggle.checked)pauseOS('fist 1 s');}else fistStart=0;
+  if(g==='fist'){releaseMouse(true);if(!fistStart)fistStart=now;else if(now-fistStart>1000&&(osToggle.checked||bridge.ready&&!bridge.killed))pauseOS('fist 1 s');}else fistStart=0;
   // Lost hand → release + pause.
-  if(!lm){if(osToggle.checked)pauseOS('hand lost');scrollY=null;return;}
+  if(!lm){if(osToggle.checked||mouseIsDown)pauseOS('hand lost');scrollY=null;return;}
   const live=controlling();
   for(const e of pinchEv){
-    if(e.type==='down'){const q=e.pos||curPos;clickRing();if(live){bridge.move(q.x,q.y,true);bridge.mouseDown();mouseIsDown=true;osAct('press');}}
+    if(e.type==='down'){const q=e.pos||curPos;clickRing();if(live&&g!=='fist'){bridge.move(q.x,q.y,true);bridge.mouseDown();mouseIsDown=true;osAct('press');}}
     else if(e.type==='drag'){osAct('drag');}
     else if(e.type==='up'){if(mouseIsDown){bridge.mouseUp();mouseIsDown=false;osAct(e.click?'click':'drop');if(e.click)log('OS click');}}
   }
@@ -225,7 +229,7 @@ $('voiceBtn').onclick=()=>{if(!SR){$('voiceCmd').textContent='Speech recognition
   rec.onend=()=>{listening=false;$('voiceBtn').textContent='● Start listening';$('voiceBtn').classList.remove('on');};
   rec.start();listening=true;$('voiceBtn').textContent='■ Stop listening';$('voiceBtn').classList.add('on');log('Voice: listening');};
 // ---------- Test hook: replay synthetic landmarks without a camera
-window.GestureOS={feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},
+window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},
   drawnPixels:()=>{const d=dctx.getImageData(0,0,dc.width,dc.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;}};
 // ---------- PWA
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(()=>log('Offline cache ready (service worker)')).catch(e=>console.warn('SW',e));

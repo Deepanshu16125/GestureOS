@@ -64,3 +64,6 @@ If there is no display (e.g. a Linux server) or neither pynput nor PyAutoGUI loa
 | `backends.py` | `PynputBackend` (default), `PyAutoGUIBackend` (fallback), `DryRunBackend` (records calls) |
 | `demo_client.py`, `test_client.html` | manual test clients |
 | `tests/` | pytest suite — run `python -m pytest bridge` from the `gestureos` folder |
+
+## Emergency stop
+With the pynput backend the bridge listens globally for **F9** or **Esc**: pressing either in any window releases held buttons and pauses input, even when the browser has no focus. Disable with `--no-hotkey`. A held button with no input for the watchdog time (1.5 s) is also released, even if pings keep arriving.

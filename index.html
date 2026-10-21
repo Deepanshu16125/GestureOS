@@ -13,40 +13,33 @@
  <div class="topright"><span id="bridgeChip" class="chip off">OS: off</span><button id="startBtn" class="btn solid">Start camera</button></div>
 </header>
 
-<section class="vf">
- <div class="feedcol">
-  <div class="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas>
-   <div id="camMsg">Press “Start camera”.<small>All processing happens locally; no video leaves your device.</small></div>
-   <div class="fpsbox"><b id="hudFps">000</b><canvas id="fpsChart" width="84" height="22"></canvas><span class="cap">FPS · LAST 26 S</span></div>
-   <i class="tick tl"></i><i class="tick tr"></i><i class="tick bl"></i><i class="tick br"></i>
-   <div class="caminfo cap">CAM A · 640×480 · MIRROR · GATE 2.39</div>
-  </div>
+<main class="split">
+<section class="pane vfpane">
+ <div class="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas>
+  <div id="camMsg">Press “Start camera”.<small>All processing happens locally; no video leaves your device.</small></div>
+  <div class="fpsbox"><b id="hudFps">000</b><canvas id="fpsChart" width="84" height="22"></canvas><span class="cap">FPS</span></div>
   <div id="legend" class="legend"></div>
   <div class="gest"><span class="cap">GESTURE</span><div id="gestureBadge">NO HAND</div><div class="mono sub">mode <b id="hudMode">Air Mouse</b> · raw <b id="hudGesture">—</b></div></div>
+  <i class="tick tl"></i><i class="tick tr"></i><i class="tick bl"></i><i class="tick br"></i>
  </div>
-
- <aside class="qmenu">
-  <div class="arm"><span class="cap idx">05 · OS CONTROL</span><div id="armWord" class="armword">ARM</div><span id="armCap" class="mono sub">OS control off · tick the lever to arm</span></div>
-  <ol class="qrows">
-   <li><span class="q">RUN</span><span class="v"><span id="osAction" class="mono">idle</span></span>
-    <label class="lever" title="Enable OS control"><input type="checkbox" id="osEnable"><span class="face"></span></label></li>
-   <li><span class="q">BRIDGE</span><span class="v bridgev"><input id="bridgeUrl" value="ws://127.0.0.1:8765" size="19"><button id="bridgeConnect" class="btn solid">Link</button><button id="bridgeDisconnect" class="btn">Drop</button></span></li>
-   <li><span class="q">STATE</span><span class="v mono" id="bridgeState">NO BRIDGE</span></li>
-   <li><span class="q">BACKEND</span><span class="v mono" id="hudBackend">—</span></li>
-   <li><span class="q">PING</span><span class="v mono" id="ping">—</span></li>
-   <li class="pinchrow"><span class="q">PINCH</span><span class="v"><div id="pinchMeter" class="pmeter"><div id="pinchFill"></div></div><b id="pinchVal" class="mono">—</b><span class="mono unit">thumb–index / hand size · enter &lt; 0.35 · exit &gt; 0.5</span></span></li>
-   <li><span class="q">PALM 2 S</span><span class="v"><div class="bar"><div id="palmProg"></div></div></span></li>
-  </ol>
-  <button id="killBtn" class="kill"><span>KILL</span><small>pause input · Esc</small></button>
-  <dl class="readouts">
-   <div><dt>Inference</dt><dd id="lat">0 ms</dd></div><div><dt>Hands</dt><dd id="hands">0</dd></div>
-   <div><dt>Confidence</dt><dd id="conf">—</dd></div><div><dt>Raw label</dt><dd id="raw">—</dd></div>
-   <div><dt>Frame rate</dt><dd><span id="fps">0</span> fps</dd></div>
-  </dl>
- </aside>
+ <div class="caminfo cap">CAM A · 640×480 · MIRROR · GATE 2.39</div>
+ <div class="ctlstrip">
+  <div class="arm"><span class="cap idx">OS CONTROL</span><div id="armWord" class="armword">ARM</div><span id="armCap" class="mono sub">OS control off</span></div>
+  <label class="lever" title="RUN: arm OS control"><input type="checkbox" id="osEnable"><span class="face"></span></label>
+  <button id="killBtn" class="kill"><span>KILL</span><small>Esc · F9 on bridge</small></button>
+ </div>
+ <ol class="qrows">
+  <li><span class="q">RUN</span><span class="v mono" id="osAction">idle</span><span class="q q2">STATE</span><span class="v mono" id="bridgeState">NO BRIDGE</span></li>
+  <li><span class="q">BRIDGE</span><span class="v bridgev"><input id="bridgeUrl" value="ws://127.0.0.1:8765" size="19"><button id="bridgeConnect" class="btn solid">Link</button><button id="bridgeDisconnect" class="btn">Drop</button></span></li>
+  <li><span class="q">BACKEND</span><span class="v mono" id="hudBackend">—</span><span class="q q2">PING</span><span class="v mono" id="ping">—</span></li>
+  <li class="pinchrow"><span class="q">PINCH</span><span class="v"><div id="pinchMeter" class="pmeter"><div id="pinchFill"></div></div><b id="pinchVal" class="mono">—</b><span class="mono unit">enter &lt; 0.35 · exit &gt; 0.5</span></span><span class="q q2">PALM</span><span class="v"><div class="bar"><div id="palmProg"></div></div></span></li>
+ </ol>
 </section>
-
-<section class="deck">
+<section class="pane stage">
+ <dl class="readouts">
+  <div><dt>Inference</dt><dd id="lat">0 ms</dd></div><div><dt>Hands</dt><dd id="hands">0</dd></div>
+  <div><dt>Confidence</dt><dd id="conf">—</dd></div><div><dt>Raw</dt><dd id="raw">—</dd></div><div><dt>Rate</dt><dd><span id="fps">0</span> fps</dd></div>
+ </dl>
  <div class="mode" id="mode-cursor"><div class="mhead"><span class="idx">01</span><h2>Air Mouse</h2><p>Your index fingertip moves the amber ring anywhere on the page. A quick thumb–index pinch clicks whatever is under it: try the A–D targets.</p></div>
   <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p class="cap">Clicks <b id="clickCount" class="mono">0</b></p></div>
  <div class="mode hidden" id="mode-draw"><div class="mhead"><span class="idx">02</span><h2>Air Draw</h2><p>Pinch (or point) to draw, open your palm to lift the pen, hold a fist for 1 s to clear.</p></div>
@@ -62,11 +55,8 @@
  <div class="mode hidden" id="mode-os"><div class="mhead"><span class="idx">05</span><h2>OS Control</h2>
   <p>Run <code>python -m bridge</code> and serve this page from <code>http://localhost:8000</code>. Push the <b>RUN</b> lever up: it links to the bridge by itself. Control <b>starts paused</b>; pull the <b>RUN</b> lever to arm. Point moves the real cursor; a quick pinch clicks where the cursor was 200 ms earlier; a pinch held over 450 ms drags; a peace sign moved up or down scrolls. Esc, a fist held 1 s, or losing the hand releases the mouse and pauses. An open palm held 2 s pauses or re-arms.</p></div>
   <p class="note">The bridge listens on localhost only, checks the page origin, rate-limits input and pauses itself after 1.5 s without a ping.</p></div>
- <div class="tune"><span class="cap idx">CURSOR FILTER · ONE EURO</span>
-  <label class="slider"><span class="cap">mincutoff <b id="minCutoffV" class="mono"></b> Hz</span><input type="range" id="minCutoff" min="0.05" max="5" step="0.05" value="1"></label>
-  <label class="slider"><span class="cap">beta <b id="betaV" class="mono"></b></span><input type="range" id="beta" min="0" max="0.1" step="0.001" value="0.007"></label>
-  <span class="cap idx logh">EVENT LOG</span><ul id="log"></ul></div>
 </section>
+</main>
 
 <div id="drawer" class="drawer">
  <div class="mode hidden" id="mode-train">
@@ -77,12 +67,16 @@
    <p class="mono sub">Prediction <b id="knnPred">—</b> <span id="knnConf"></span></p></div>
   <div class="dtakes"><span class="cap idx">SHOT LIST · SAVED TAKES</span><p id="trainStatus" class="mono sub">Samples stored locally (localStorage).</p><ol id="classList" class="rules"></ol>
    <div class="row"><button id="exportBtn" class="btn">Export JSON</button><label class="btn filebtn">Import JSON<input type="file" id="importFile" accept=".json" hidden></label><button id="resetBtn" class="btn danger">Reset</button></div></div>
+ <div class="tune"><span class="cap idx">CURSOR FILTER · ONE EURO</span>
+  <label class="slider"><span class="cap">mincutoff <b id="minCutoffV" class="mono"></b> Hz</span><input type="range" id="minCutoff" min="0.05" max="5" step="0.05" value="1"></label>
+  <label class="slider"><span class="cap">beta <b id="betaV" class="mono"></b></span><input type="range" id="beta" min="0" max="0.1" step="0.001" value="0.007"></label>
+  <span class="cap idx logh">EVENT LOG</span><ul id="log"></ul></div>
  </div>
 </div>
 
 <footer class="bezel-bot">
  <span class="mono add">ADD <i class="pips"><i></i><i></i><i></i><i></i></i></span>
- <button id="drawerBtn" class="drawbtn">▴ TRAINER · <b id="takes">0</b> TAKES</button>
+ <button id="drawerBtn" class="drawbtn">▴ TRAINER · FILTER · LOG · <b id="takes">0</b> TAKES</button>
  <span class="mono counter">FRAME <b id="frameCt">000000</b></span>
  <span class="mono foot">Deepanshu · 2026</span>
 </footer>

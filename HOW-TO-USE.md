@@ -23,11 +23,14 @@ Open the page from `http://localhost:8000` (run `python -m http.server 8000` in 
 - The **RUN** row shows what the OS mouse is doing right now: `idle`, `move`, `press`, `drag`, `click`, `scroll` or `paused`.
 - The **lever** on the right of RUN is the on/off switch for real mouse control. Push it up to arm: it connects to the bridge by itself, and the REC dot, the ARM word and the gate outline turn red or amber. Pull it down to pause.
 - **STATE** shows the bridge: `NO BRIDGE`, `CONNECTED · PAUSED` (with the reason, such as kill or watchdog) or `CONNECTED · LIVE`. **BACKEND** shows `pynput`, `pyautogui` or `dry-run`.
-- To stop at any time: press **Esc**, hold a fist for 1 second, take your hand out of view, or press **KILL**. The bridge also pauses itself if the page goes quiet for 1.5 s.
+- To stop at any time: press **Esc** (page focused), hold a fist for 1 second, take your hand out of view, or press **KILL**. After any stop the lever drops to off and nothing re-arms by itself; push the lever up again to continue.
+- **Emergency stop that always works:** with the real bridge (`python -m bridge`, pynput backend) press **F9** or **Esc** in *any* window, even when the browser is not focused. The bridge releases the mouse button and pauses at once. (Disable with `--no-hotkey`.)
+- OS control also pauses itself when you switch mode, switch tab or window (the browser loses focus), or when a button stays held with no movement for 1.5 s. So: air-clicking another app's window pauses control; push the lever up again in the browser to continue.
+- Only **Air Mouse** and **OS Control** ever send mouse input to the bridge.
 
 ## How to test OS control
 1. Terminal 1, in the project folder: `python -m http.server 8000`
 2. Terminal 2: `pip install -r bridge/requirements.txt`, then first a safe test with `python -m bridge --dry-run`. That run only prints `dry-run move …` and `dry-run mouseDown/mouseUp` lines and does not move anything.
 3. Open `http://localhost:8000` in Chrome, press **Start camera**, choose **Air Mouse** or **OS Control**, and push the lever up. STATE should say `CONNECTED · LIVE` and BACKEND `dry-run`.
-4. Point and pinch. Terminal 2 should print move and mouseDown/mouseUp lines.
+4. Point and pinch. Terminal 2 should print move and mouseDown/mouseUp lines. Press KILL: the lines stop and the lever drops.
 5. When that works, stop the bridge (Ctrl+C) and run `python -m bridge` with no flag to drive the real mouse. Keep Esc ready.

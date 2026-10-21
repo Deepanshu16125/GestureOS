@@ -41,6 +41,6 @@ export class BridgeClient{
   mouseDown(button='left'){this.send({type:'mouseDown',button});}
   mouseUp(button='left'){this.raw({type:'mouseUp',button});}
   scroll(dy,dx=0){this.send({type:'scroll',dx:Math.max(-50,Math.min(50,dx|0)),dy:Math.max(-50,Math.min(50,dy|0))});}
-  kill(){this.raw({type:'kill'});}
+  kill(){this.killed=true;this.raw({type:'mouseUp',button:'left'});this.raw({type:'kill'});} // local gate closes at once
   resume(){this.raw({type:'resume'});}
 }

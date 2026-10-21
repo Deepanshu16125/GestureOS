@@ -136,9 +136,50 @@ body.drawer-open .drawer{transform:none}
 /* v2.1: page cursor, voice, smaller gate so the active mode is visible without scrolling */
 .pagecursor{position:fixed;z-index:45;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid var(--accent);border-radius:50%;pointer-events:none;box-shadow:0 0 0 1px #000}
 .pagecursor.down{background:var(--accent)}
-.camwrap{width:min(100%,calc(50vh * 16 / 9))}
 .vf{min-height:0}
 .vout{display:grid;grid-template-columns:90px 1fr;gap:8px 14px;margin:16px 0}.vout dd{margin:0;font-size:18px;color:var(--ink)}
 #voiceBtn.on{background:var(--alert);border-color:var(--alert);color:var(--ink)}
 #slideNo{font-size:14px}
 .camwrap .fpsbox{right:18px;top:14px}
+/* ===== v2.2 two-pane split: viewfinder 42 / stage 58, one baseline, one bezel ===== */
+.split{display:grid;grid-template-columns:42fr 58fr;height:calc(100vh - var(--top) - var(--bot));min-height:600px;overflow:hidden}
+.pane{min-width:0;min-height:0;display:flex;flex-direction:column}
+.vfpane{background:radial-gradient(ellipse at 40% 30%,#1a1b17 0,#0C0D0B 75%);padding:18px 22px 16px 14px;border-right:1px solid #050504;box-shadow:inset -1px 0 0 var(--line)}
+.vfpane .camwrap{width:100%;flex:none;aspect-ratio:16/9;max-height:60%}
+.vfpane .legend{left:22px;top:18%;font-size:13px}.vfpane .legend div{height:24px}
+.vfpane .legend div em{display:none}
+.vfpane .gest{position:absolute;left:22px;bottom:14px;margin:0}
+.vfpane #gestureBadge{font-size:clamp(28px,3vw,46px)}
+.vfpane .camwrap .fpsbox{right:16px;top:12px}
+.vfpane #hudFps{font-size:clamp(30px,2.6vw,46px)}
+.caminfo{position:static;margin:7px 0 0;font-size:12px}
+.ctlstrip{display:grid;grid-template-columns:1fr 26px minmax(150px,44%);gap:16px;align-items:center;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
+.armword{font-size:clamp(48px,4.6vw,78px);margin:2px 0}
+.ctlstrip .kill{margin:0;height:68px;align-items:center}
+.ctlstrip .kill span{font-size:30px}
+.qrows{margin:12px 0 0}
+.qrows li{grid-template-columns:70px minmax(0,1fr) 54px minmax(0,1fr);gap:8px;padding:6px 0 5px}
+.q{font-size:14.5px}.q2{color:var(--ink-2)}
+.bridgev,.pinchrow .v{grid-column:2/5}
+.pinchrow .v{grid-column:2/3}.pinchrow .unit{width:auto}
+.pmeter{width:min(130px,100%)}
+/* stage */
+.stage{display:flex;flex-direction:column;padding:14px 30px 16px 30px;gap:0;grid-template-columns:none;background:var(--bg)}
+.stage .readouts{display:flex;margin:0 0 12px;border-top:0;border-bottom:1px solid var(--line)}
+.stage .readouts div{flex:1;padding:4px 14px 6px;border-bottom:0;border-left:1px solid var(--line)}
+.stage .readouts div:first-child{padding-left:0;border-left:0}.stage .readouts div:nth-child(even){padding-left:14px}
+.stage .readouts dd{font-size:16px}
+.stage .mode{flex:1;min-height:0;display:flex;flex-direction:column}
+.stage .mhead{margin-bottom:10px}.stage .mhead h2{font-size:clamp(30px,2.8vw,44px)}.stage .mhead p{padding-right:6%;margin-top:4px;font-size:13.5px}
+.stage .pad{flex:1;height:auto;min-height:220px}
+.stage #drawCanvas{flex:1;min-height:0;width:100%;height:100%;object-fit:contain}
+.stage .slide{flex:1;height:auto;min-height:200px}
+.stage .row{margin:8px 0}.stage>.mode>.cap{margin:8px 0 0}
+.stage .note{margin-top:10px}
+/* drawer with filter + log column */
+.drawer{display:flex}#mode-train{flex:1}
+.drawer .tune{width:320px;flex:none;padding:18px 22px;border-left:1px solid var(--line-2)}
+.drawer #log{max-height:120px}
+@media(max-width:1000px){.split{grid-template-columns:1fr;height:auto;overflow:visible}.vfpane{border-right:0}.stage .pad,.stage .slide{min-height:320px}.drawer .tune{display:none}}
+.armword::after{left:0}.stage .readouts{margin-left:0}
+.vfpane .camwrap{aspect-ratio:auto;flex:1 1 auto;max-height:none;min-height:240px}.ctlstrip{margin-top:12px}
