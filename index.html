@@ -4,7 +4,7 @@
 <nav id="tabs"><button data-mode="cursor" class="active">Air Mouse</button><button data-mode="draw">Air Draw</button><button data-mode="slides">Slides/Media</button><button data-mode="sign">Sign Letters</button><button data-mode="train">Train</button><button data-mode="os">OS Control</button></nav>
 <span id="bridgeChip" class="chip off">OS: off</span><button id="startBtn" class="primary">▶ Start Camera</button></header>
 <div id="hud"><div class="hudrow"><span class="hk">MODE</span><b id="hudMode">Air Mouse</b><span class="hk">GESTURE</span><b id="hudGesture">—</b><span class="hk">FPS</span><b id="hudFps">0</b>
-<span class="hk">PINCH</span><div id="pinchMeter" class="pmeter"><div id="pinchFill"></div></div><b id="pinchVal">—</b></div><div id="legend" class="legend"></div></div>
+<span class="hk">BACKEND</span><b id="hudBackend">—</b><span class="hk">PINCH</span><div id="pinchMeter" class="pmeter"><div id="pinchFill"></div></div><b id="pinchVal">—</b></div><div id="legend" class="legend"></div></div>
 <main>
 <section class="stage"><div class="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div id="camMsg">Click “Start Camera”. All processing happens locally — no video leaves your device.</div></div>
 <div id="gestureBadge">—</div></section>
@@ -25,9 +25,9 @@
   <div class="row"><button id="exportBtn">Export JSON</button><label class="filebtn">Import JSON<input type="file" id="importFile" accept=".json" hidden></label><button id="resetBtn" class="danger">Reset model</button></div>
   <p>Prediction: <b id="knnPred">—</b> <span id="knnConf"></span></p></div>
  <div class="panel mode hidden" id="mode-os"><h2>OS Control (real mouse via local bridge)</h2>
-  <p>Run <code>python -m bridge</code> first, then connect. OS control <b>starts paused</b>; tick <b>Enable OS control</b>. Esc, a fist held 1 s, or losing the hand releases the mouse and pauses. <b>Point</b> moves the real cursor. A quick <b>pinch</b> clicks where the cursor was 200 ms before the pinch closed; holding it for more than 450 ms drags. Move a <b>peace ✌️</b> sign up or down to scroll. Hold an <b>open palm 🖐</b> for 2 s to kill or resume.</p>
+  <p>Run <code>python -m bridge</code> first, then connect. OS control <b>starts paused</b>; tick <b>Enable OS control</b>. Esc, a fist held 1 s, or losing the hand releases the mouse and pauses. <b>Point</b> moves the real cursor. A quick <b>pinch</b> clicks where the cursor was 200 ms before the pinch closed; holding it for more than 450 ms drags. Move a <b>peace ✌️</b> sign up or down to scroll. Hold an <b>open palm 🖐</b> for 2 s to pause or re-enable. If the bridge pauses itself (idle watchdog, kill, fail-safe) you have to tick the toggle again.</p>
   <div class="row"><input id="bridgeUrl" value="ws://localhost:8765" size="22"><button id="bridgeConnect" class="primary">Connect</button><button id="bridgeDisconnect">Disconnect</button><label class="toggle"><input type="checkbox" id="osEnable"> Enable OS control</label></div>
-  <button id="killBtn" class="kill">⛔ KILL</button>
+  <button id="killBtn" class="kill">⛔ KILL (Esc)</button>
   <div class="row"><span>Action: <b id="osAction">idle</b></span><span>Palm hold: </span><div class="bar"><div id="palmProg"></div></div></div>
   <p class="warn">Safety: moving the real mouse into a screen corner also trips the bridge fail-safe. The bridge only accepts connections from localhost.</p></div>
 </section>

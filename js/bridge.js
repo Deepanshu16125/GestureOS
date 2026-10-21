@@ -17,14 +17,16 @@ export class BridgeClient{
   disconnect(silent){if(!this.ws)return;try{if(this.ready)this.raw({type:'bye'});}catch{}const ws=this.ws;this.ws=null;this.ready=false;clearInterval(this.pingTimer);ws.close();if(!silent)this.emit('status','disconnected');}
   handle(m){
     switch(m.type){
-      case 'ack':this.ready=true;this.killed=!!m.killed;this.screen=m.screen;this.dryRun=!!m.dryRun;
+      case 'ack':this.ready=true;this.killed=!!m.killed;this.screen=m.screen;this.dryRun=!!m.dryRun;this.backend=m.backend||(m.dryRun?'dry-run':'pyautogui');this.watchdog=m.watchdog;
         this.emit('status',this.killed?'killed':'connected');
-        this.emit('log',`Bridge ready: screen ${m.screen?.w}×${m.screen?.h}${m.dryRun?' (dry-run)':''}`);
-        this.pingTimer=setInterval(()=>this.ping(),1000);this.ping();break;
-      case 'state':this.killed=!!m.killed;this.emit('status',this.killed?'killed':'connected');this.emit('log',this.killed?'Bridge KILLED, input off':'Bridge resumed');break;
+        this.emit('log',`Bridge ready: ${this.backend}, screen ${m.screen?.w}×${m.screen?.h}${this.watchdog?`, watchdog ${this.watchdog}s`:''}`);
+        this.emit('ack',m);
+        // v1.1: server starts paused and has an idle watchdog, so ping every 500 ms.
+        this.pingTimer=setInterval(()=>this.ping(),500);this.ping();break;
+      case 'state':this.killed=!!m.killed;this.emit('state',{killed:this.killed,reason:m.reason||(this.killed?'kill':'resume')});this.emit('status',this.killed?'killed':'connected');break;
       case 'pong':{const t=this.pending.get(m.id);if(t!==undefined){this.rtt=performance.now()-t;this.pending.delete(m.id);this.emit('rtt',this.rtt);}break;}
       case 'error':
-        if(m.code==='failsafe'){this.killed=true;this.emit('status','killed');}
+        if(m.code==='failsafe'){this.killed=true;this.emit('state',{killed:true,reason:'failsafe'});this.emit('status','killed');}
         if(m.code!=='rate_limited'&&m.code!=='killed')this.emit('log',`Bridge error ${m.code}: ${m.message||''}`);break;
     }
   }

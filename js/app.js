@@ -119,7 +119,7 @@ const LEGEND={cursor:[['☝️','Point','move cursor'],['🤏','Pinch','click (h
  slides:[['🖐','Swipe','next / prev slide'],['👍','Thumbs up','play'],['✊','Fist','pause'],['✌️','Peace','mute']],
  sign:[['🤟','ASL sign','hold 0.8 s to type'],['🖐','Open palm','space']],
  train:[['●','Record','60 samples per class'],['🧠','k-NN','live prediction']],
- os:[['☝️','Point','move OS cursor'],['🤏','Pinch','click (200 ms lookback)'],['🤏⏱','Pinch > 450 ms','drag'],['✌️↕','Peace up/down','scroll'],['✊','Fist 1 s / Esc','pause'],['🖐','Palm 2 s','kill / resume']]};
+ os:[['☝️','Point','move OS cursor'],['🤏','Pinch','click (200 ms lookback)'],['🤏⏱','Pinch > 450 ms','drag'],['✌️↕','Peace up/down','scroll'],['✊','Fist 1 s / Esc','pause'],['🖐','Palm 2 s','pause / re-enable']]};
 const MODE_NAME={cursor:'Air Mouse',draw:'Air Draw',slides:'Slides/Media',sign:'Sign Letters',train:'Train',os:'OS Control'};
 let legendMode=null;
 function updateHud(g){$('hudMode').textContent=MODE_NAME[mode];$('hudGesture').textContent=EMO[g]||('⭐ '+g);$('hudFps').textContent=$('fps').textContent;
@@ -130,41 +130,46 @@ function updatePinchMeter(r,closed){$('pinchFill').style.width=(r==null?0:Math.m
 function clickRing(){if(!curPos)return;const w=document.querySelector('.camwrap'),el=document.createElement('div');el.className='ring';
   el.style.left=(curPos.x*70+15)+'%';el.style.top=(curPos.y*70+15)+'%';w.append(el);setTimeout(()=>el.remove(),450);}
 document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>updateHud(prevG)));updateHud('none');
-// ---------- OS Control (bridge)
+// ---------- OS Control (bridge v1.1: server starts paused; toggle = resume, any pause = kill)
 const bridge=new BridgeClient();
 const killBtn=$('killBtn'),osToggle=$('osEnable');
-let bridgeState='disconnected';
+let bridgeState='disconnected',pauseReason='';
 const controlling=()=>bridge.ready&&!bridge.killed&&osToggle.checked;
 function renderChip(){const c=$('bridgeChip');let cls='off',t='OS: off';
   if(bridgeState==='connecting'){cls='connecting';t='OS: connecting…';}
-  else if(bridgeState==='killed'){cls='killed';t='OS: KILLED';}
-  else if(bridge.ready){if(controlling()){cls='live';t='OS: CONTROLLING';}else{cls='paused';t='OS: paused';}if(bridge.dryRun)t+=' (dry-run)';}
-  c.className='chip '+cls;c.textContent=t;}
+  else if(bridge.ready){if(controlling()){cls='live';t='OS: CONTROLLING';}else if(osToggle.checked){cls='connecting';t='OS: resuming…';}else{cls='paused';t='OS: paused'+(pauseReason?' ('+pauseReason+')':'');}}
+  c.className='chip '+cls;c.textContent=t;
+  $('hudBackend').textContent=bridge.ready?bridge.backend:'—';}
 bridge.addListener('log',log);
 bridge.addListener('rtt',r=>$('ping').textContent=r.toFixed(1)+' ms');
+bridge.addListener('ack',m=>{pauseReason=m.killed?'start':'';
+  if(osToggle.checked){bridge.resume();log('OS control enabled → resume');}else if(!m.killed){bridge.kill();}renderChip();});
+bridge.addListener('state',({killed,reason})=>{
+  if(killed){releaseMouse(false);pauseReason=reason;if(osToggle.checked){osToggle.checked=false;log(`OS control paused by bridge (${reason}). Re-enable to continue.`);}else log(`Bridge paused (${reason})`);}
+  else{pauseReason='';log('Bridge resumed');}renderChip();});
 bridge.addListener('status',st=>{bridgeState=st;
-  killBtn.textContent=st==='killed'?'▶ RESUME':'⛔ KILL';killBtn.classList.toggle('resume',st==='killed');
-  if(st!=='connected'&&st!=='killed'){$('ping').textContent='—';pauseOS(null);}
-  if(st==='killed')releaseMouse(false);renderChip();});
-osToggle.onchange=()=>{if(!osToggle.checked)pauseOS('toggle');else log('OS control enabled');renderChip();};
+  if(st!=='connected'&&st!=='killed'){$('ping').textContent='—';releaseMouse(false);if(osToggle.checked){osToggle.checked=false;}}renderChip();});
+osToggle.onchange=()=>{if(osToggle.checked){if(bridge.ready){bridge.resume();log('OS control enabled');}else{log('Connect the bridge first');osToggle.checked=false;}}else pauseOS('toggle');renderChip();};
 $('bridgeConnect').onclick=()=>bridge.connect($('bridgeUrl').value.trim());
-$('bridgeDisconnect').onclick=()=>{releaseMouse(true);bridge.disconnect();};
-function toggleKill(){if(!bridge.connected)return log('Bridge not connected');if(bridge.killed)bridge.resume();else{releaseMouse(true);bridge.kill();}}
-killBtn.onclick=toggleKill;
+$('bridgeDisconnect').onclick=()=>{pauseOS(null);bridge.disconnect();};
+killBtn.onclick=()=>pauseOS('KILL button');
+// Open palm 2 s toggles control: pause if live, re-enable if paused.
+function toggleKill(){if(!bridge.ready)return log('Bridge not connected');if(controlling())pauseOS('palm');else{osToggle.checked=true;osToggle.onchange();}}
 window.addEventListener('keydown',e=>{if(e.key==='Escape')pauseOS('Esc');});
 window.addEventListener('beforeunload',()=>{releaseMouse(true);bridge.disconnect(true);});
 let mouseIsDown=false,scrollY=null,scrollAcc=0,palmStart=0,palmFired=false,fistStart=0;
 const osAct=a=>$('osAction').textContent=a;
 function releaseMouse(send){if(mouseIsDown){if(send&&bridge.ready)bridge.raw({type:'mouseUp',button:'left'});mouseIsDown=false;}}
-/** Release any held button and pause OS input (toggle off). reason=null → silent. */
-function pauseOS(reason){releaseMouse(true);if(osToggle.checked){osToggle.checked=false;if(reason)log('OS control paused ('+reason+')');}osAct('paused');renderChip();}
+/** Release any held button, send kill (bridge pauses + releases), toggle off. reason=null → silent. */
+function pauseOS(reason){releaseMouse(true);const was=osToggle.checked;osToggle.checked=false;
+  if(bridge.ready&&!bridge.killed)bridge.kill();if(reason){pauseReason=reason;if(was)log('OS control paused ('+reason+')');}osAct('paused');renderChip();}
 function osControl(g,lm){
   const now=performance.now();
   // Open palm held 2 s → bridge kill/resume (works while paused or killed).
   if(g==='open_palm'){if(!palmStart){palmStart=now;palmFired=false;}const f=Math.min(1,(now-palmStart)/2000);$('palmProg').style.width=f*100+'%';
     if(f>=1&&!palmFired){palmFired=true;toggleKill();}}else{palmStart=0;$('palmProg').style.width='0';}
   // Fist held 1 s → pause.
-  if(g==='fist'){if(!fistStart)fistStart=now;else if(now-fistStart>1000&&osToggle.checked)pauseOS('fist');}else fistStart=0;
+  if(g==='fist'){if(!fistStart)fistStart=now;else if(now-fistStart>1000&&osToggle.checked)pauseOS('fist 1 s');}else fistStart=0;
   // Lost hand → release + pause.
   if(!lm){if(osToggle.checked)pauseOS('hand lost');scrollY=null;return;}
   const live=controlling();
