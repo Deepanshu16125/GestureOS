@@ -15,7 +15,13 @@ const tune=()=>{cursorF.set(+$('minCutoff').value,+$('beta').value);$('minCutoff
 const EMO={open_palm:'🖐 Open Palm',fist:'✊ Fist',point:'☝️ Point',pinch:'🤏 Pinch',thumbs_up:'👍 Thumbs Up',thumbs_down:'👎 Thumbs Down',peace:'✌️ Peace',rock:'🤘 Rock',unknown:'❔ Unknown',none:'— No hand'};
 const log=m=>{const li=document.createElement('li');li.textContent=new Date().toLocaleTimeString()+'  '+m;$('log').prepend(li);while($('log').children.length>40)$('log').lastChild.remove();};
 // Tabs
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;document.querySelectorAll('.mode').forEach(m=>m.classList.add('hidden'));$('mode-'+mode).classList.remove('hidden');log('Mode → '+mode);});
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;document.body.classList.toggle('drawer-open',mode==='train');document.querySelectorAll('.mode').forEach(m=>m.classList.add('hidden'));$('mode-'+mode).classList.remove('hidden');log('Mode → '+mode);});
+// Drawer (trainer) + bezel clocks
+const tab=m=>document.querySelector(`#tabs button[data-mode="${m}"]`).click();
+$('drawerBtn').onclick=()=>tab(mode==='train'?'cursor':'train');$('drawerClose').onclick=()=>tab('cursor');
+const t0Page=performance.now();let frameCt=0;
+setInterval(()=>{const t=(performance.now()-t0Page)/1000,p=n=>String(Math.floor(n)).padStart(2,'0');$('tc').textContent=`${p(t/3600)}:${p(t/60%60)}:${p(t%60)}:${p(t*24%24)}`;},1000/24);
+const NAME=g=>g==='none'?'NO HAND':String(g).replace(/_/g,' ').toUpperCase();
 // Start
 $('startBtn').onclick=async()=>{
   if(running)return;$('camMsg').textContent='Loading MediaPipe model…';
@@ -31,16 +37,16 @@ $('startBtn').onclick=async()=>{
 let frames=0,fpsT=performance.now(),fpsHist=[];
 function perf(lat){frames++;const n=performance.now();$('lat').textContent=lat.toFixed(1)+' ms';
   if(n-fpsT>=500){const f=frames*1000/(n-fpsT);frames=0;fpsT=n;$('fps').textContent=f.toFixed(0);fpsHist.push(f);if(fpsHist.length>52)fpsHist.shift();drawChart();}}
-function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#B06F2C';x.lineWidth=2;x.beginPath();
-  fpsHist.forEach((f,i)=>{const px=i*5,py=c.height-Math.min(f,60)/60*c.height;i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
+function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#8C8F7F';x.lineWidth=1;x.beginPath();
+  fpsHist.forEach((f,i)=>{const px=i*(c.width/51),py=c.height-1-Math.min(f,60)/60*(c.height-2);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
 const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#E6DAA9';octx.lineWidth=3;
+function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#9AA87A';octx.lineWidth=Math.max(1,W/640);
   for(const [a,b] of CONN){octx.beginPath();octx.moveTo(lm[a].x*W,lm[a].y*H);octx.lineTo(lm[b].x*W,lm[b].y*H);octx.stroke();}
-  for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,4.5,0,7);octx.fillStyle='#B06F2C';octx.fill();octx.lineWidth=1.5;octx.strokeStyle='#3B4029';octx.stroke();}}
+  for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,2,0,7);octx.fillStyle='#C9D3A6';octx.fill();}}
 let prevG='none';
 function loop(){
   if(!running)return;
-  if(video.currentTime!==lastVideoTime){lastVideoTime=video.currentTime;
+  if(video.currentTime!==lastVideoTime){lastVideoTime=video.currentTime;frameCt++;$('frameCt').textContent=String(frameCt).padStart(6,'0');
     ov.width=video.videoWidth;ov.height=video.videoHeight;
     const t0=performance.now(),res=landmarker.detectForVideo(video,t0),lat=performance.now()-t0;perf(lat);
     octx.clearRect(0,0,ov.width,ov.height);const hands=res.landmarks||[];$('hands').textContent=hands.length;
@@ -56,7 +62,7 @@ function loop(){
     if(!hands.length){pinchEv=pinch.update(null);cursorF.reset();curPos=null;}
     updatePinchMeter(pinch.ratio,pinch.closed);
     $('raw').textContent=g;const sm=smoother.push(g);$('conf').textContent=(conf*sm.ratio*100).toFixed(0)+'%';
-    $('gestureBadge').textContent=EMO[sm.label]||('⭐ '+sm.label);
+    $('gestureBadge').textContent=NAME(sm.label);
     if(sm.label!==prevG){if(sm.label!=='none')log('Gesture: '+sm.label);prevG=sm.label;}
     updateHud(sm.label);
     handleMode(sm.label,lm);
@@ -82,7 +88,7 @@ function airDraw(g,lm){if(!lm){last=null;return;}
 $('clearDraw').onclick=()=>dctx.clearRect(0,0,dc.width,dc.height);
 $('saveDraw').onclick=()=>{const a=document.createElement('a');a.download='airdraw.png';a.href=dc.toDataURL();a.click();};
 // ---------- Slides / Media
-const SLIDES=[['GestureOS','#3B4029','#ECE8D7'],['On-device ML, privacy first','#F6F2E7','#2B2A1C'],['21 landmarks · 30+ FPS','#DEDBC3','#2B2A1C'],['Custom gestures via k-NN','#B06F2C','#F6F2E7'],['Thank you','#DCDFC6','#B06F2C']];
+const SLIDES=[['GestureOS','#161714','#E4E2D4'],['On-device ML, privacy first','#E4E2D4','#0C0D0B'],['21 landmarks per hand','#1C1D19','#C4A035'],['Custom gestures via k-NN','#C4A035','#0C0D0B'],['Thank you','#0C0D0B','#E4E2D4']];
 let si=0,playing=false,muted=false,prog=0,hist=[],cool=0;
 function showSlide(){$('slide').textContent=SLIDES[si][0];$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
 function slides(g,lm){const now=performance.now();
@@ -106,7 +112,7 @@ function record(vec){knn.add(recName,vec);recN++;$('trainStatus').textContent=`R
 $('recBtn').onclick=()=>{const n=$('gName').value.trim();if(!n)return alert('Enter a gesture name');if(!running)return alert('Start the camera first');
   recName=n;recN=0;$('trainStatus').textContent='Get ready… recording in 2s';setTimeout(()=>recording=true,2000);};
 function renderClasses(){const ul=$('classList');ul.innerHTML='';for(const [l,c] of Object.entries(knn.classes())){const li=document.createElement('li');const nb=document.createElement('b');nb.textContent=l;li.append(nb,` — ${c} samples `);
-  const b=document.createElement('button');b.textContent='✕';b.onclick=()=>{knn.removeClass(l);renderClasses();};li.append(b);ul.append(li);}}
+  const b=document.createElement('button');b.textContent='✕';b.onclick=()=>{knn.removeClass(l);renderClasses();};li.append(b);ul.append(li);}$('takes').textContent=Object.keys(knn.classes()).length;}
 renderClasses();
 $('resetBtn').onclick=()=>{if(confirm('Delete all custom gestures?')){knn.reset();renderClasses();}};
 $('exportBtn').onclick=()=>{const a=document.createElement('a');a.download='gestureos-model.json';a.href=URL.createObjectURL(new Blob([knn.export()]));a.click();};
@@ -122,8 +128,10 @@ const LEGEND={cursor:[['☝️','Point','move cursor'],['🤏','Pinch','click (h
  os:[['☝️','Point','move OS cursor'],['🤏','Pinch','click (200 ms lookback)'],['🤏⏱','Pinch > 450 ms','drag'],['✌️↕','Peace up/down','scroll'],['✊','Fist 1 s / Esc','pause'],['🖐','Palm 2 s','pause / re-enable']]};
 const MODE_NAME={cursor:'Air Mouse',draw:'Air Draw',slides:'Slides/Media',sign:'Sign Letters',train:'Train',os:'OS Control'};
 let legendMode=null;
-function updateHud(g){$('hudMode').textContent=MODE_NAME[mode];$('hudGesture').textContent=EMO[g]||('⭐ '+g);$('hudFps').textContent=$('fps').textContent;
-  if(legendMode!==mode){legendMode=mode;$('legend').innerHTML=LEGEND[mode].map(([i,n,a])=>`<span><b>${i} ${n}</b> → ${a}</span>`).join('');}}
+const GKEY=n=>{n=n.toLowerCase();return /pinch/.test(n)?'pinch':/point/.test(n)?'point':/palm|swipe/.test(n)?'open_palm':/fist/.test(n)?'fist':/thumbs/.test(n)?'thumbs_up':/peace/.test(n)?'peace':'';};
+function updateHud(g){$('hudMode').textContent=MODE_NAME[mode];$('hudGesture').textContent=NAME(g).toLowerCase();$('hudFps').textContent=String(Math.min(999,+$('fps').textContent||0)).padStart(3,'0');
+  if(legendMode!==mode){legendMode=mode;$('legend').innerHTML=LEGEND[mode].map(([i,n,a],k)=>`<div data-g="${GKEY(n)}"><i>${String(k+1).padStart(2,'0')}</i>${n}<em>→ ${a}</em></div>`).join('');}
+  $('legend').querySelectorAll('div').forEach(d=>d.classList.toggle('on',!!d.dataset.g&&d.dataset.g===g));}
 const PMAX=0.5;
 (()=>{const m=$('pinchMeter');for(const [v,c] of [[pinch.close,'close'],[pinch.open,'open']]){const l=document.createElement('i');l.className='thr '+c;l.style.left=v/PMAX*100+'%';l.title=c+' '+v;m.append(l);}})();
 function updatePinchMeter(r,closed){$('pinchFill').style.width=(r==null?0:Math.min(1,r/PMAX)*100)+'%';$('pinchMeter').classList.toggle('closed',closed);$('pinchVal').textContent=r==null?'—':r.toFixed(2);}
@@ -138,7 +146,8 @@ const controlling=()=>bridge.ready&&!bridge.killed&&osToggle.checked;
 function renderChip(){const c=$('bridgeChip');let cls='off',t='OS: off';
   if(bridgeState==='connecting'){cls='connecting';t='OS: connecting…';}
   else if(bridge.ready){if(controlling()){cls='live';t='OS: CONTROLLING';}else if(osToggle.checked){cls='connecting';t='OS: resuming…';}else{cls='paused';t='OS: paused'+(pauseReason?' ('+pauseReason+')':'');}}
-  c.className='chip '+cls;c.textContent=t;
+  c.className='chip '+cls;c.textContent=t;const armed=controlling();document.body.classList.toggle('armed',armed);
+  $('armCap').textContent=armed?'OS control live · real cursor':(bridge.ready?'Bridge linked · pull the RUN lever to arm':'OS control off · link the bridge first');
   $('hudBackend').textContent=bridge.ready?bridge.backend:'—';}
 bridge.addListener('log',log);
 bridge.addListener('rtt',r=>$('ping').textContent=r.toFixed(1)+' ms');

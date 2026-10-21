@@ -1,79 +1,85 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GestureOS · On-Device Hand Gesture Control</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#3B4029"><link rel="icon" href="icons/icon.svg">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0C0D0B"><link rel="icon" href="icons/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css"></head><body>
+<svg class="grain" aria-hidden="true"><filter id="grainF"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grainF)"/></svg>
 
-<header class="topband"><div class="wrap topbar">
- <div class="brand">Gesture<em>OS</em></div>
- <nav id="tabs"><button data-mode="cursor" class="active">Air Mouse</button><button data-mode="draw">Air Draw</button><button data-mode="slides">Slides &amp; Media</button><button data-mode="sign">Sign Letters</button><button data-mode="train">Train</button><button data-mode="os">OS Control</button></nav>
+<header class="bezel-top">
+ <div class="tally"><i id="recDot" class="rec"></i><span class="mono">OS</span><span id="tc" class="mono tc">00:00:00:00</span></div>
+ <div class="brand">GESTURE<b>OS</b></div>
+ <nav id="tabs"><button data-mode="cursor" class="active"><i>01</i>Air Mouse</button><button data-mode="draw"><i>02</i>Air Draw</button><button data-mode="slides"><i>03</i>Slides</button><button data-mode="sign"><i>04</i>Sign</button><button data-mode="os"><i>05</i>OS Control</button><button data-mode="train"><i>06</i>Train</button></nav>
  <div class="topright"><span id="bridgeChip" class="chip off">OS: off</span><button id="startBtn" class="btn solid">Start camera</button></div>
-</div></header>
+</header>
 
-<section id="hud" class="band sand"><div class="wrap">
- <div class="hudrow">
-  <div class="hcell"><span class="label">Mode</span><b id="hudMode">Air Mouse</b></div>
-  <div class="hcell"><span class="label">Gesture</span><b id="hudGesture">—</b></div>
-  <div class="hcell"><span class="label">FPS</span><b id="hudFps">0</b></div>
-  <div class="hcell"><span class="label">Backend</span><b id="hudBackend">—</b></div>
-  <div class="hcell wide"><span class="label">Pinch <span class="muted">close 0.18 · open 0.23</span></span><div class="pinchline"><div id="pinchMeter" class="pmeter"><div id="pinchFill"></div></div><b id="pinchVal">—</b></div></div>
+<section class="vf">
+ <div class="feedcol">
+  <div class="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas>
+   <div id="camMsg">Press “Start camera”.<small>All processing happens locally; no video leaves your device.</small></div>
+   <i class="tick tl"></i><i class="tick tr"></i><i class="tick bl"></i><i class="tick br"></i>
+   <div class="caminfo cap">CAM A · 640×480 · MIRROR · GATE 2.39</div>
+  </div>
+  <div id="legend" class="legend"></div>
+  <div class="fpsbox"><b id="hudFps">000</b><canvas id="fpsChart" width="84" height="22"></canvas><span class="cap">FPS · LAST 26 S</span></div>
+  <div class="gest"><span class="cap">GESTURE</span><div id="gestureBadge">NO HAND</div><div class="mono sub">mode <b id="hudMode">Air Mouse</b> · raw <b id="hudGesture">—</b></div></div>
  </div>
- <div id="legend" class="legend"></div>
-</div></section>
 
-<section class="band intro"><div class="wrap">
- <span class="label">Final-year project · On-device computer vision</span>
- <h1>Hand control, <em>in the browser</em>.</h1>
- <p class="lede muted">MediaPipe Hands runs locally on your webcam feed. No frame leaves this machine. Choose a mode above; an optional local bridge drives the real OS mouse.</p>
-</div></section>
-
-<main class="band"><div class="wrap stagegrid">
-<section class="stage">
- <div class="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div id="camMsg">Press “Start camera”. All processing happens locally; no video leaves your device.</div></div>
- <div class="badgeline"><span class="label">Recognised</span><div id="gestureBadge">—</div></div>
+ <aside class="qmenu">
+  <div class="arm"><span class="cap idx">05 · OS CONTROL</span><div id="armWord" class="armword">ARM</div><span id="armCap" class="mono sub">OS control off · tick the lever to arm</span></div>
+  <ol class="qrows">
+   <li><span class="q">RUN</span><span class="v"><span id="osAction" class="mono">idle</span></span>
+    <label class="lever" title="Enable OS control"><input type="checkbox" id="osEnable"><span class="face"></span></label></li>
+   <li><span class="q">BRIDGE</span><span class="v bridgev"><input id="bridgeUrl" value="ws://localhost:8765" size="19"><button id="bridgeConnect" class="btn solid">Link</button><button id="bridgeDisconnect" class="btn">Drop</button></span></li>
+   <li><span class="q">BACKEND</span><span class="v mono" id="hudBackend">—</span></li>
+   <li><span class="q">PING</span><span class="v mono" id="ping">—</span></li>
+   <li class="pinchrow"><span class="q">PINCH</span><span class="v"><div id="pinchMeter" class="pmeter"><div id="pinchFill"></div></div><b id="pinchVal" class="mono">—</b><span class="mono unit">ratio · close 0.18 / open 0.23</span></span></li>
+   <li><span class="q">PALM 2 S</span><span class="v"><div class="bar"><div id="palmProg"></div></div></span></li>
+  </ol>
+  <button id="killBtn" class="kill"><span>KILL</span><small>pause input · Esc</small></button>
+  <dl class="readouts">
+   <div><dt>Inference</dt><dd id="lat">0 ms</dd></div><div><dt>Hands</dt><dd id="hands">0</dd></div>
+   <div><dt>Confidence</dt><dd id="conf">—</dd></div><div><dt>Raw label</dt><dd id="raw">—</dd></div>
+   <div><dt>Frame rate</dt><dd><span id="fps">0</span> fps</dd></div>
+  </dl>
+ </aside>
 </section>
-<section class="workspace">
- <div class="mode" id="mode-cursor"><span class="label">Mode 01</span><h2>Air Mouse</h2><p class="muted">Move your index finger to steer. Pinch thumb and index to click.</p>
-  <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p class="small">Clicks: <b id="clickCount">0</b></p></div>
- <div class="mode hidden" id="mode-draw"><span class="label">Mode 02</span><h2>Air Draw</h2><p class="muted">Point to draw, open palm to lift the pen, hold a fist for 1 s to clear.</p>
-  <div class="row"><label>Colour <input type="color" id="penColor" value="#B06F2C"></label><label>Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn">Clear</button><button id="saveDraw" class="btn">Save PNG</button></div>
+
+<section class="deck">
+ <div class="mode" id="mode-cursor"><div class="mhead"><span class="idx">01</span><h2>Air Mouse</h2><p>Move your index finger to steer. Pinch thumb and index to click.</p></div>
+  <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p class="cap">Clicks <b id="clickCount" class="mono">0</b></p></div>
+ <div class="mode hidden" id="mode-draw"><div class="mhead"><span class="idx">02</span><h2>Air Draw</h2><p>Point to draw, open palm to lift the pen, hold a fist for 1 s to clear.</p></div>
+  <div class="row"><label class="cap">Colour <input type="color" id="penColor" value="#C4A035"></label><label class="cap">Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn">Clear</button><button id="saveDraw" class="btn">Save PNG</button></div>
   <canvas id="drawCanvas" width="800" height="450"></canvas></div>
- <div class="mode hidden" id="mode-slides"><span class="label">Mode 03</span><h2>Slides &amp; Media</h2><p class="muted">Swipe left or right with an open palm. Thumbs up plays, fist pauses, peace toggles mute.</p>
-  <div id="slide" class="slide"></div><div class="row"><span id="mediaState">⏸ Paused</span><span id="muteState">🔊</span><div class="bar"><div id="mediaProg"></div></div></div></div>
- <div class="mode hidden" id="mode-sign"><span class="label">Mode 04</span><h2>Sign Letters</h2><p class="muted">Hold a sign steady for about 0.8 s to type it. ASL subset: A, B, D, I, L, O, V, W, Y; open palm types a space.</p>
+ <div class="mode hidden" id="mode-slides"><div class="mhead"><span class="idx">03</span><h2>Slides &amp; Media</h2><p>Swipe left or right with an open palm. Thumbs up plays, fist pauses, peace toggles mute.</p></div>
+  <div id="slide" class="slide"></div><div class="row"><span id="mediaState" class="mono">⏸ Paused</span><span id="muteState">🔊</span><div class="bar"><div id="mediaProg"></div></div></div></div>
+ <div class="mode hidden" id="mode-sign"><div class="mhead"><span class="idx">04</span><h2>Sign Letters</h2><p>Hold a sign steady for about 0.8 s to type it. ASL subset: A, B, D, I, L, O, V, W, Y; open palm types a space.</p></div>
   <div id="signLetter" class="bigletter">?</div><div id="signText" class="typed"></div><button id="signClear" class="btn">Clear text</button></div>
- <div class="mode hidden" id="mode-train"><span class="label">Mode 05</span><h2>Train a gesture</h2><p class="muted">Record 60 samples; a k-nearest-neighbour model classifies them live. Stored only in this browser.</p>
-  <div class="row"><input id="gName" placeholder="Gesture name, e.g. rock"><button id="recBtn" class="btn solid">Record 60 samples</button></div>
-  <div class="row"><label>k <input type="number" id="kVal" value="5" min="1" max="15"></label><label><input type="checkbox" id="useCustom" checked> Use custom model in live recognition</label></div>
-  <p id="trainStatus" class="small muted">Samples stored locally in your browser (localStorage).</p><ul id="classList" class="rules"></ul>
-  <div class="row"><button id="exportBtn" class="btn">Export JSON</button><label class="btn filebtn">Import JSON<input type="file" id="importFile" accept=".json" hidden></label><button id="resetBtn" class="btn danger">Reset model</button></div>
-  <p>Prediction: <b id="knnPred">—</b> <span id="knnConf" class="muted"></span></p></div>
- <div class="mode hidden" id="mode-os"><span class="label">Mode 06</span><h2>OS Control</h2>
-  <p class="muted">Run <code>python -m bridge</code>, then connect. Control <b>starts paused</b>; tick <b>Enable OS control</b>. Point moves the real cursor; a quick pinch clicks where the cursor was 200 ms earlier; a pinch held over 450 ms drags; a peace sign moved up or down scrolls. Esc, a fist held 1 s, or losing the hand releases the mouse and pauses. An open palm held 2 s pauses or re-enables. If the bridge pauses itself (watchdog, kill, fail-safe), tick the toggle again.</p>
-  <div class="row"><input id="bridgeUrl" value="ws://localhost:8765" size="22"><button id="bridgeConnect" class="btn solid">Connect</button><button id="bridgeDisconnect" class="btn">Disconnect</button></div>
-  <div class="row"><label class="toggle"><input type="checkbox" id="osEnable"> Enable OS control</label></div>
-  <button id="killBtn" class="kill">Kill · pause input (Esc)</button>
-  <div class="row small"><span>Action: <b id="osAction">idle</b></span><span class="muted">Palm hold</span><div class="bar"><div id="palmProg"></div></div></div>
-  <p class="note small">The bridge listens on localhost only, checks the page origin, rate-limits input and pauses itself after 1.5 s without a ping.</p></div>
+ <div class="mode hidden" id="mode-os"><div class="mhead"><span class="idx">05</span><h2>OS Control</h2>
+  <p>Run <code>python -m bridge</code>, then press <b>Link</b>. Control <b>starts paused</b>; pull the <b>RUN</b> lever to arm. Point moves the real cursor; a quick pinch clicks where the cursor was 200 ms earlier; a pinch held over 450 ms drags; a peace sign moved up or down scrolls. Esc, a fist held 1 s, or losing the hand releases the mouse and pauses. An open palm held 2 s pauses or re-arms.</p></div>
+  <p class="note">The bridge listens on localhost only, checks the page origin, rate-limits input and pauses itself after 1.5 s without a ping.</p></div>
+ <div class="tune"><span class="cap idx">CURSOR FILTER · ONE EURO</span>
+  <label class="slider"><span class="cap">mincutoff <b id="minCutoffV" class="mono"></b> Hz</span><input type="range" id="minCutoff" min="0.05" max="5" step="0.05" value="1"></label>
+  <label class="slider"><span class="cap">beta <b id="betaV" class="mono"></b></span><input type="range" id="beta" min="0" max="0.1" step="0.001" value="0.007"></label>
+  <span class="cap idx logh">EVENT LOG</span><ul id="log"></ul></div>
 </section>
-</div></main>
 
-<section class="band sand dash"><div class="wrap">
- <div class="shead"><h2>Performance</h2><span class="label">Live, measured in this tab</span></div>
- <div class="stats">
-  <div class="stat"><span class="label">FPS</span><b id="fps">0</b></div><div class="stat"><span class="label">Inference</span><b id="lat">0 ms</b></div>
-  <div class="stat"><span class="label">Bridge ping</span><b id="ping">—</b></div><div class="stat"><span class="label">Hands</span><b id="hands">0</b></div>
-  <div class="stat"><span class="label">Raw label</span><b id="raw">—</b></div><div class="stat"><span class="label">Confidence</span><b id="conf">—</b></div>
+<div id="drawer" class="drawer">
+ <div class="mode hidden" id="mode-train">
+  <div class="dlive"><div class="mhead"><span class="idx">06</span><h2>Train a gesture</h2><button id="drawerClose" class="btn">▾ Close</button></div>
+   <p>Record 60 samples; a k-nearest-neighbour model classifies them live. Stored only in this browser.</p>
+   <div class="row"><input id="gName" placeholder="Gesture name, e.g. rock"><button id="recBtn" class="btn solid">● Record 60</button></div>
+   <div class="row"><label class="cap">k <input type="number" id="kVal" value="5" min="1" max="15"></label><label class="cap"><input type="checkbox" id="useCustom" checked> Use custom model live</label></div>
+   <p class="mono sub">Prediction <b id="knnPred">—</b> <span id="knnConf"></span></p></div>
+  <div class="dtakes"><span class="cap idx">SHOT LIST · SAVED TAKES</span><p id="trainStatus" class="mono sub">Samples stored locally (localStorage).</p><ol id="classList" class="rules"></ol>
+   <div class="row"><button id="exportBtn" class="btn">Export JSON</button><label class="btn filebtn">Import JSON<input type="file" id="importFile" accept=".json" hidden></label><button id="resetBtn" class="btn danger">Reset</button></div></div>
  </div>
- <div class="dashgrid">
-  <div><h3>Frame rate</h3><canvas id="fpsChart" width="260" height="80"></canvas></div>
-  <div><h3>Cursor filter <span class="muted small">One Euro</span></h3>
-   <label class="slider"><span class="label">mincutoff</span> <b id="minCutoffV"></b><input type="range" id="minCutoff" min="0.05" max="5" step="0.05" value="1"></label>
-   <label class="slider"><span class="label">beta</span> <b id="betaV"></b><input type="range" id="beta" min="0" max="0.1" step="0.001" value="0.007"></label></div>
-  <div><h3>Event log</h3><ul id="log"></ul></div>
- </div>
-</div></section>
+</div>
 
-<footer class="band"><div class="wrap foot"><span>GestureOS · privacy-first on-device vision</span><span>MediaPipe Hands · One Euro · k-NN · B.Tech CSE, Deepanshu</span></div></footer>
+<footer class="bezel-bot">
+ <span class="mono add">ADD <i class="pips"><i></i><i></i><i></i><i></i></i></span>
+ <button id="drawerBtn" class="drawbtn">▴ TRAINER · <b id="takes">0</b> TAKES</button>
+ <span class="mono counter">FRAME <b id="frameCt">000000</b></span>
+ <span class="mono foot">MediaPipe Hands · One Euro · k-NN · B.Tech CSE, Deepanshu</span>
+</footer>
 <script type="module" src="js/app.js"></script></body></html>
