@@ -24,19 +24,19 @@ $('startBtn').onclick=async()=>{
     const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2});
     try{landmarker=await HandLandmarker.createFromOptions(fs,opts('GPU'));}catch{landmarker=await HandLandmarker.createFromOptions(fs,opts('CPU'));}
     video.srcObject=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480}});
-    await video.play();running=true;$('camMsg').style.display='none';$('startBtn').textContent='● Live';log('Camera + model ready');requestAnimationFrame(loop);
+    await video.play();running=true;$('camMsg').style.display='none';$('startBtn').textContent='Camera live';log('Camera + model ready');requestAnimationFrame(loop);
   }catch(e){$('camMsg').textContent='Error: '+e.message+' (needs webcam, internet for first model load, and http://localhost)';}
 };
 // Perf
 let frames=0,fpsT=performance.now(),fpsHist=[];
 function perf(lat){frames++;const n=performance.now();$('lat').textContent=lat.toFixed(1)+' ms';
   if(n-fpsT>=500){const f=frames*1000/(n-fpsT);frames=0;fpsT=n;$('fps').textContent=f.toFixed(0);fpsHist.push(f);if(fpsHist.length>52)fpsHist.shift();drawChart();}}
-function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#00e5ff';x.lineWidth=2;x.beginPath();
+function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#9C4A2A';x.lineWidth=2;x.beginPath();
   fpsHist.forEach((f,i)=>{const px=i*5,py=c.height-Math.min(f,60)/60*c.height;i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
 const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#00e5ff';octx.lineWidth=3;
+function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#E8C9A8';octx.lineWidth=3;
   for(const [a,b] of CONN){octx.beginPath();octx.moveTo(lm[a].x*W,lm[a].y*H);octx.lineTo(lm[b].x*W,lm[b].y*H);octx.stroke();}
-  octx.fillStyle='#7c4dff';for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,4,0,7);octx.fill();}}
+  for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,4.5,0,7);octx.fillStyle='#9C4A2A';octx.fill();octx.lineWidth=1.5;octx.strokeStyle='#3A2F26';octx.stroke();}}
 let prevG='none';
 function loop(){
   if(!running)return;
@@ -82,9 +82,9 @@ function airDraw(g,lm){if(!lm){last=null;return;}
 $('clearDraw').onclick=()=>dctx.clearRect(0,0,dc.width,dc.height);
 $('saveDraw').onclick=()=>{const a=document.createElement('a');a.download='airdraw.png';a.href=dc.toDataURL();a.click();};
 // ---------- Slides / Media
-const SLIDES=[['GestureOS','#3d5afe'],['On-device ML — privacy first','#7c4dff'],['21 landmarks · 30+ FPS','#00897b'],['Custom gestures via k-NN','#c2185b'],['Thank you! 🙏','#f57c00']];
+const SLIDES=[['GestureOS','#3A2F26','#EDE3D1'],['On-device ML, privacy first','#F8F3EA','#221B15'],['21 landmarks · 30+ FPS','#E2D5BE','#221B15'],['Custom gestures via k-NN','#9C4A2A','#F8F3EA'],['Thank you','#E6DAC6','#9C4A2A']];
 let si=0,playing=false,muted=false,prog=0,hist=[],cool=0;
-function showSlide(){$('slide').textContent=SLIDES[si][0];$('slide').style.background=SLIDES[si][1];}showSlide();
+function showSlide(){$('slide').textContent=SLIDES[si][0];$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
 function slides(g,lm){const now=performance.now();
   if(lm&&g==='open_palm'){hist.push({x:1-lm[0].x,t:now});hist=hist.filter(h=>now-h.t<400);
     if(hist.length>3&&now>cool){const dx=hist.at(-1).x-hist[0].x;
@@ -105,7 +105,7 @@ function record(vec){knn.add(recName,vec);recN++;$('trainStatus').textContent=`R
   if(recN>=60){recording=false;knn.save();renderClasses();$('trainStatus').textContent=`Saved 60 samples for "${recName}".`;log('Trained '+recName);}}
 $('recBtn').onclick=()=>{const n=$('gName').value.trim();if(!n)return alert('Enter a gesture name');if(!running)return alert('Start the camera first');
   recName=n;recN=0;$('trainStatus').textContent='Get ready… recording in 2s';setTimeout(()=>recording=true,2000);};
-function renderClasses(){const ul=$('classList');ul.innerHTML='';for(const [l,c] of Object.entries(knn.classes())){const li=document.createElement('li');li.innerHTML=`<b>${l}</b> — ${c} samples `;
+function renderClasses(){const ul=$('classList');ul.innerHTML='';for(const [l,c] of Object.entries(knn.classes())){const li=document.createElement('li');const nb=document.createElement('b');nb.textContent=l;li.append(nb,` — ${c} samples `);
   const b=document.createElement('button');b.textContent='✕';b.onclick=()=>{knn.removeClass(l);renderClasses();};li.append(b);ul.append(li);}}
 renderClasses();
 $('resetBtn').onclick=()=>{if(confirm('Delete all custom gestures?')){knn.reset();renderClasses();}};
