@@ -261,3 +261,7 @@ body.stack .g-rows li{min-height:28px;padding:3px 0}
 #signCard li{position:relative}#signCard li[data-pct]:not([data-pct=""])::after{content:attr(data-pct);position:absolute;right:8px;top:50%;transform:translateY(-50%);font:12px 'IBM Plex Mono',monospace;color:#C4A035}
 #signCard li{background:linear-gradient(90deg,rgba(196,160,53,.18) calc(var(--m,0)*100%),transparent 0)}
 .pen{font-size:12px;padding:4px 8px;border:1px solid #3a3b35;color:#9AA87A}
+/* v10 */
+.microw{display:flex;align-items:center;gap:12px;margin:8px 0;flex-wrap:wrap}
+.micmeter{width:220px;height:12px;border:1px solid #3a3b35;background:#0C0D0B;position:relative;overflow:hidden}
+.micmeter i{position:absolute;inset:0;width:calc(var(--p,0)*100%);background:linear-gradient(90deg,#9AA87A,#C4A035 70%,#C43C2B);transition:width 80ms}

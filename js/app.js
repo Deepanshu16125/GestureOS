@@ -1,7 +1,7 @@
-import {features,classify,signInfo,signFeatures,indexPen,pinchRatio,Smoother,EMA,fingerDebug} from './gestures.js?v=9';
-import {KNN} from './knn.js?v=9';
-import {BridgeClient} from './bridge.js?v=9';
-import {OneEuro2D,PinchFSM,mapInner} from './filters.js?v=9';
+import {features,classify,signInfo,signFeatures,indexPen,pinchRatio,Smoother,EMA,fingerDebug} from './gestures.js?v=10';
+import {KNN} from './knn.js?v=10';
+import {BridgeClient} from './bridge.js?v=10';
+import {OneEuro2D,PinchFSM,mapInner} from './filters.js?v=10';
 const $=id=>document.getElementById(id);
 const video=$('video'),ov=$('overlay'),octx=ov.getContext('2d');
 let landmarker=null,mode='cursor',running=false,lastVideoTime=-1;
@@ -287,33 +287,68 @@ export function matchVoice(text){const t=' '+text.toLowerCase().replace(/[^a-z ]
   for(const k of order)for(const s of SYN[k])if(t.includes(' '+s+' '))return k;
   for(const k of order)for(const s of SYN[k])if(!s.includes(' ')&&s.length>=4&&words.some(w=>w.length>=4&&lev(w,s)<=1))return k;
   return null;}
-function voiceCommand(text){$('voiceText').textContent='“'+text+'”';const k=matchVoice(text);
-  if(k){const r=ACT[k]();$('voiceCmd').textContent=r;vStatus(`heard: “${text}” → ${r}`,'ok');log('Voice: '+r);return r;}
-  $('voiceCmd').textContent='not a command';vStatus(`heard: “${text}” — not a command`,'warn');return null;}
-const ERR={'not-allowed':'microphone blocked — allow it in the address-bar mic icon (site settings) and press Start again','service-not-allowed':'speech service not allowed in this browser — use Chrome or Edge',
- 'network':'network — the speech service could not be reached (needs internet; Opera/Brave have no speech service)','no-speech':'no speech heard — still listening','audio-capture':'no microphone found / mic in use by another app','aborted':'aborted'};
+function voiceCommand(text,engine=''){$('voiceText').textContent='“'+text+'”';const k=matchVoice(text);
+  if(k){const r=ACT[k]();$('voiceCmd').textContent=r;vStatus(`heard${engine}: “${text}” → ${r}`,'ok');log('Voice: '+r);return r;}
+  $('voiceCmd').textContent='not a command';vStatus(`heard${engine}: “${text}” — not a command`,'warn');return null;}
+const ERR={'not-allowed':'microphone blocked for this site — click the lock/mic icon in the address bar → Allow, then Start again','service-not-allowed':'this browser has no speech service — switching to Offline',
+ 'network':'the online speech service could not be reached — switching to Offline','no-speech':'no speech heard yet','audio-capture':'no microphone found / mic busy in another app','aborted':'aborted'};
+let engine=null,micStream=null,audioCtx=null,meterRaf=0,gotResult=false,browserTimer=0;
 function setBtn(on){$('voiceBtn').textContent=on?'■ Stop listening':'● Start listening';$('voiceBtn').classList.toggle('on',on);}
-async function startVoice(){
-  if(!SR){vStatus(`unsupported: ${BROWSER} has no Web Speech API. Open http://localhost:8000 in Chrome or Edge.`,'err');return;}
-  if(!VOICE_OK)vStatus(`warning: ${BROWSER} exposes the API but usually cannot reach a speech service. Use Chrome or Edge. Trying anyway…`,'warn');
-  if(!window.isSecureContext){vStatus('error: needs a secure context — open via http://localhost, not a LAN IP or file://','err');return;}
-  try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());}
-  catch(e){vStatus('error: microphone '+(e.name==='NotAllowedError'?'permission denied (not-allowed)':e.name==='NotFoundError'?'not found (audio-capture)':e.name),'err');return;}
-  wantListen=true;restarts=0;setBtn(true);launch();log('Voice: listening');}
-function launch(){rec=new SR();rec.lang=$('voiceLang').value||'en-IN';rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=3;
-  rec.onstart=()=>vStatus('listening… say “next”, “back”, “draw”…','on');
-  rec.onresult=e=>{const r=e.results[e.results.length-1];const tx=r[0].transcript.trim();
-    if(!r.isFinal){vStatus(`hearing: “${tx}”…`,'on');return;}
-    restarts=0;for(let i=0;i<r.length;i++)if(matchVoice(r[i].transcript)){voiceCommand(r[i].transcript.trim());return;}voiceCommand(tx);};
-  rec.onerror=e=>{const m=ERR[e.error]||e.error;if(e.error==='no-speech'){vStatus('no-speech: '+m,'warn');return;}
-    vStatus('error: '+e.error+' — '+m,'err');log('Voice error: '+e.error);if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'){wantListen=false;setBtn(false);}};
-  rec.onend=()=>{if(wantListen&&restarts<20){restarts++;setTimeout(()=>{if(wantListen)try{launch();}catch(err){vStatus('error: restart failed — '+err.message,'err');}},restarts>3?1500:250);}
-    else{if(wantListen)vStatus('stopped after repeated failures — press Start listening again','err');wantListen=false;setBtn(false);}};
-  try{rec.start();}catch(err){vStatus('error: '+err.message,'err');}}
-$('voiceBtn').onclick=()=>{if(wantListen){wantListen=false;try{rec&&rec.stop();}catch{}setBtn(false);vStatus('idle','');return;}startVoice();};
-vStatus(!SR?`unsupported in ${BROWSER} — open in Chrome or Edge`:VOICE_OK?`ready (${BROWSER}) — press Start listening`:`${BROWSER} detected — voice usually fails here; use Chrome or Edge`,!SR||!VOICE_OK?'warn':'');
+function setLevel(v,src){$('micMeter').style.setProperty('--p',Math.min(1,v).toFixed(3));$('micSrc').textContent=src;}
+function voiceEngineName(){return engine==='offline'?'Offline (Vosk in bridge)':engine==='browser'?`Browser (${BROWSER})`:'—';}
+function showEngine(){$('voiceEngineNow').textContent=voiceEngineName();}
+/** Browser mic meter from the getUserMedia stream: proves audio reaches the page even if recognition fails. */
+function startMeter(stream){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();const an=audioCtx.createAnalyser();an.fftSize=512;
+  audioCtx.createMediaStreamSource(stream).connect(an);const buf=new Uint8Array(an.fftSize);
+  const tick=()=>{an.getByteTimeDomainData(buf);let s=0;for(const v of buf){const x=(v-128)/128;s+=x*x;}if(engine!=='offline')setLevel(Math.sqrt(s/buf.length)*6,'browser mic');meterRaf=requestAnimationFrame(tick);};tick();}catch(e){log('Mic meter: '+e.message);}}
+function stopMeter(){cancelAnimationFrame(meterRaf);try{audioCtx&&audioCtx.close();}catch{}audioCtx=null;if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}setLevel(0,'—');}
+// ---- Offline engine: the Python bridge records the default Windows mic and runs Vosk; no browser permission involved.
+function startOffline(why=''){engine='offline';wantListen=true;setBtn(true);showEngine();
+  vStatus((why?why+' · ':'')+'offline: connecting to the bridge…','on');
+  const go=()=>bridge.raw({type:'voice_start'});
+  if(bridge.connected)go();else{bridge.connect($('bridgeUrl').value.trim());const t0=performance.now();const w=setInterval(()=>{if(bridge.connected){clearInterval(w);go();}
+    else if(performance.now()-t0>4000){clearInterval(w);vStatus('offline: no bridge at '+$('bridgeUrl').value+' — run  .venv\\Scripts\\python.exe -m bridge','err');wantListen=false;setBtn(false);}},150);}}
+bridge.addListener('voice',m=>{if(engine!=='offline')return;if(!m.final){vStatus(`hearing (offline): “${m.text}”…`,'on');return;}voiceCommand(m.text,' (offline)');});
+bridge.addListener('voice_level',m=>{if(engine==='offline')setLevel(m.level,'bridge mic');});
+bridge.addListener('voice_status',m=>{if(engine!=='offline')return;vStatus(m.state+': '+m.message,m.state==='error'?'err':m.state==='listening'?'on':'');
+  if(m.state==='error'||m.state==='stopped'){if(m.state==='error')log('Voice offline: '+m.message);wantListen=false;setBtn(false);}});
+// ---- Browser engine (Web Speech API): a NEW recognition object per session/restart.
+function startBrowser(){engine='browser';wantListen=true;restarts=0;gotResult=false;setBtn(true);showEngine();launch();
+  clearTimeout(browserTimer);browserTimer=setTimeout(()=>{if(engine==='browser'&&wantListen&&!gotResult&&$('voiceEngine').value==='auto'){stopBrowser();startOffline('browser recognition produced nothing in 10 s');}},10000);}
+function stopBrowser(){wantListen=false;clearTimeout(browserTimer);try{rec&&rec.abort();}catch{}rec=null;}
+function fallback(reason){if($('voiceEngine').value==='auto'){stopBrowser();startOffline(reason);}else{wantListen=false;setBtn(false);}}
+function launch(){const r=new SR();rec=r;r.lang=$('voiceLang').value||'en-IN';r.continuous=true;r.interimResults=true;r.maxAlternatives=3;
+  r.onstart=()=>vStatus(`listening (${BROWSER})… say “next”, “back”, “draw”…`,'on');
+  r.onresult=e=>{gotResult=true;const x=e.results[e.results.length-1];const tx=x[0].transcript.trim();
+    if(!x.isFinal){vStatus(`hearing: “${tx}”…`,'on');return;}
+    restarts=0;for(let i=0;i<x.length;i++)if(matchVoice(x[i].transcript)){voiceCommand(x[i].transcript.trim());return;}voiceCommand(tx);};
+  r.onerror=e=>{const m=ERR[e.error]||e.error;log('Voice error: '+e.error);
+    if(e.error==='no-speech'){vStatus('no-speech: '+m,'warn');return;}
+    vStatus('error: '+e.error+' — '+m,'err');
+    if(e.error!=='aborted')fallback('browser speech failed ('+e.error+')');};
+  r.onend=()=>{if(rec!==r||engine!=='browser')return;if(wantListen&&restarts<20){restarts++;setTimeout(()=>{if(wantListen&&engine==='browser')try{launch();}catch(err){fallback('restart failed: '+err.message);}},restarts>3?1500:250);}
+    else{if(wantListen)fallback('browser recognition kept stopping');}};
+  try{r.start();}catch(err){fallback('start failed: '+err.message);}}
+function stopVoice(){if(engine==='offline')bridge.raw({type:'voice_stop'});stopBrowser();engine=null;showEngine();stopMeter();setBtn(false);vStatus('idle','');}
+/** Click handler: getUserMedia is the FIRST call, synchronously inside the user gesture, so the browser always shows its permission prompt. */
+$('voiceBtn').onclick=()=>{
+  if(wantListen||engine){stopVoice();return;}
+  const choice=$('voiceEngine').value; // auto | browser | offline
+  if(choice==='offline'){startOffline();return;} // bridge records the mic itself; no browser prompt needed
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){vStatus('no getUserMedia here (needs http://localhost) — using Offline','warn');startOffline();return;}
+  const p=navigator.mediaDevices.getUserMedia({audio:true});
+  vStatus('asking for microphone permission… (look for the prompt by the address bar)','on');
+  p.then(stream=>{micStream=stream;startMeter(stream);const tr=stream.getAudioTracks()[0];log('Mic: '+(tr?tr.label:'?'));$('micName').textContent=tr?tr.label:'—';
+      if(!SR){choice==='browser'?vStatus(`${BROWSER} has no Web Speech API — pick Offline`,'err'):startOffline(`${BROWSER} has no Web Speech API`);return;}
+      if(choice==='auto'&&!VOICE_OK){startOffline(`${BROWSER} has no working speech service`);return;}
+      startBrowser();})
+   .catch(e=>{const n=e.name==='NotAllowedError'?'permission denied (not-allowed) — click the lock icon → Microphone → Allow':e.name==='NotFoundError'?'no microphone found (audio-capture)':e.name+': '+e.message;
+      vStatus('microphone: '+n,'err');log('Mic error: '+e.name);if(choice==='auto')startOffline('browser mic '+e.name);});};
+$('voiceEngine').onchange=()=>{if(wantListen||engine){stopVoice();}};
+showEngine();
+vStatus(!SR?`${BROWSER}: no Web Speech API — Auto will use Offline (bridge)`:VOICE_OK?`ready (${BROWSER}) — press Start listening`:`${BROWSER} detected — Auto will use the Offline engine`,!SR||!VOICE_OK?'warn':'');
 // ---------- Test hook: replay synthetic landmarks without a camera
-window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,matchVoice,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},get typed(){return $('signText').textContent;},calibrateSign:(L,lms)=>{for(const lm of lms)signKnn.add(L,signFeatures(lm));signKnn.save();renderCalib();},
+window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,matchVoice,get voiceEngine(){return engine;},bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},get typed(){return $('signText').textContent;},calibrateSign:(L,lms)=>{for(const lm of lms)signKnn.add(L,signFeatures(lm));signKnn.save();renderCalib();},
   drawnPixels:()=>{const d=dctx.getImageData(0,0,dc.width,dc.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;}};
 // ---------- PWA
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(()=>log('Offline cache ready (service worker)')).catch(e=>console.warn('SW',e));

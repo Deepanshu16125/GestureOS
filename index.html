@@ -3,7 +3,7 @@
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0C0D0B"><link rel="icon" href="icons/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=9"></head><body>
+<link rel="stylesheet" href="css/style.css?v=10"></head><body>
 <svg class="grain" aria-hidden="true"><filter id="grainF"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grainF)"/></svg>
 
 <header class="bezel-top">
@@ -71,9 +71,11 @@
     <li data-l="V"><b>V</b>index + middle up, spread apart</li><li data-l="W"><b>W</b>index, middle, ring up; pinky curled</li>
     <li data-l="Y"><b>Y</b>thumb + pinky out, rest curled</li><li data-l=" "><b>␣</b>open hand with thumb out = space</li></ul></div>
   <div class="row"><div id="signText" class="typed"></div><button id="signClear" class="btn">Clear</button></div></div>
- <div class="mode hidden" id="mode-voice"><div class="mhead"><span class="idx">06</span><h2>Voice</h2><p>Chrome or Edge only (Opera, Brave and Firefox have no working speech service). Press Start, allow the microphone. Say: “next”, “back”, “draw”, “mouse”, “slides”, “sign”, “train”, “clear”, “stop” — synonyms like “forward”, “previous”, “erase”, “pause” work too.</p></div>
-  <div class="row"><button id="voiceBtn" class="btn solid bigbtn">● Start listening</button><select id="voiceLang" class="mono"><option value="en-IN">English (India)</option><option value="en-US">English (US)</option><option value="en-GB">English (UK)</option></select></div>
+ <div class="mode hidden" id="mode-voice"><div class="mhead"><span class="idx">06</span><h2>Voice</h2><p>Engine <b>Offline</b> works in any browser: the bridge listens on the Windows mic (no permission prompt, no internet). <b>Auto</b> tries the browser speech service (Chrome/Edge) and falls back to Offline. Press Start. Say: “next”, “back”, “draw”, “mouse”, “slides”, “sign”, “train”, “clear”, “stop” — synonyms like “forward”, “previous”, “erase”, “pause” work too.</p></div>
+  <div class="row"><button id="voiceBtn" class="btn solid bigbtn">● Start listening</button><label class="cap">Engine <select id="voiceEngine" class="mono"><option value="auto">Auto (browser → offline)</option><option value="offline">Offline (bridge · Vosk)</option><option value="browser">Browser (Chrome/Edge online)</option></select></label><select id="voiceLang" class="mono"><option value="en-IN">English (India)</option><option value="en-US">English (US)</option><option value="en-GB">English (UK)</option></select></div>
   <p id="voiceStatus" class="vstatus mono">—</p>
+  <div class="microw"><span class="cap">MIC LEVEL</span><span id="micMeter" class="micmeter"><i></i></span><span id="micSrc" class="mono sub">—</span><span class="cap">ENGINE</span><span id="voiceEngineNow" class="mono">—</span></div>
+  <p class="mono sub">Browser mic: <span id="micName">—</span>. Offline mode uses the Windows default recording device via the bridge — no browser permission needed.</p>
   <dl class="vout"><dt class="cap">Heard</dt><dd id="voiceText" class="mono">—</dd><dt class="cap">Did</dt><dd id="voiceCmd" class="mono">—</dd></dl></div>
  <div class="mode hidden" id="mode-os"><div class="mhead"><span class="idx">05</span><h2>OS Control</h2>
   <p>Run <code>python -m bridge</code> and open this page from <code>http://localhost:8000</code>. Push the lever up to arm (it links to the bridge by itself). Point moves the real cursor; a quick pinch clicks; a pinch held over 450 ms drags; a peace sign moved up or down scrolls.</p></div>
@@ -106,4 +108,4 @@
  <span class="mono foot">Deepanshu · 2026</span>
 </footer>
 <div id="pageCursor" class="pagecursor hidden"></div>
-<script type="module" src="js/app.js?v=9"></script></body></html>
+<script type="module" src="js/app.js?v=10"></script></body></html>

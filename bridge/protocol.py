@@ -122,6 +122,8 @@ def validate(msg) -> dict:
         out.update(keys=keys)
     elif t in ("kill", "resume", "ping", "bye"):
         pass
+    elif t in ("voice_start", "voice_stop", "voice_devices"):
+        pass
     else:
         raise ProtocolError("unknown_type", f"unknown message type '{t}'")
     return out

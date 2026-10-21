@@ -162,3 +162,7 @@ License: _to be chosen (add a `LICENSE` file)_. Bridge dependencies: [`bridge/re
 Project report material: [`docs/synopsis-outline.md`](docs/synopsis-outline.md) · Demo script: [`docs/viva-script.md`](docs/viva-script.md)
 
 <div align="center"><sub>Deepanshu · 2026</sub></div>
+
+## Voice (v10)
+Voice → Engine: **Auto** tries the browser's speech service (Chrome/Edge, online) and falls back to **Offline** on error or silence; **Offline** runs Vosk inside the bridge on the Windows default mic (no browser permission, no internet).
+Setup once: `.venv\Scripts\python.exe -m pip install -r bridge/requirements.txt` and `.venv\Scripts\python.exe -m bridge.voice --download` (≈40 MB model into `models/`). Check mics: `python -m bridge.voice --devices`; test a file: `python -m bridge.voice file.wav` (16 kHz mono).

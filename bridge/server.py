@@ -100,6 +100,8 @@ class Controller:
             return {"type": "state", "killed": False, "reason": "resume"}
         if t == "bye":
             return None
+        if t in ("voice_start", "voice_stop", "voice_devices"):
+            return self.voice_cmd(t)
 
         if not session.get("ready"):
             return error("not_ready", "send hello first", ref)
@@ -119,6 +121,43 @@ class Controller:
             log.exception("backend error")
             return error("backend_error", str(e), ref)
         return None  # input commands are fire-and-forget
+
+    # ---- offline voice (Vosk in the bridge; no browser mic permission needed)
+    voice = None
+    loop = None
+
+    def voice_emit(self, msg):
+        """Called from the mic thread: hop onto the event loop, then broadcast."""
+        def go():
+            if msg.get("command") == "stop" and msg.get("final"):
+                self.kill()  # "stop" pauses OS control right here, even if the page is busy
+                if self.broadcast:
+                    self.broadcast({"type": "state", "killed": True, "reason": "voice"})
+            if self.broadcast:
+                self.broadcast(msg)
+        if self.loop:
+            self.loop.call_soon_threadsafe(go)
+        else:
+            go()
+
+    def voice_cmd(self, t):
+        from . import voice
+        if t == "voice_devices":
+            try:
+                return {"type": "voice_devices", "devices": voice.list_inputs()}
+            except Exception as e:
+                return {"type": "voice_status", "state": "error", "message": f"sounddevice unavailable: {e}"}
+        if t == "voice_stop":
+            if self.voice:
+                self.voice.stop()
+            return {"type": "voice_status", "state": "stopping", "message": "stopping offline listening"}
+        if not os.path.isdir(voice.DEFAULT_MODEL):
+            return {"type": "voice_status", "state": "error",
+                    "message": "offline model missing: run  .venv\\Scripts\\python.exe -m bridge.voice --download"}
+        if self.voice is None:
+            self.voice = voice.MicListener(self.voice_emit)
+        self.voice.start()
+        return {"type": "voice_status", "state": "starting", "message": "starting offline recognizer…"}
 
     def held_buttons(self):
         return set(getattr(self.backend, "held", ()) or ())
@@ -189,6 +228,8 @@ async def serve(controller, host="127.0.0.1", port=8765, origins=None):
             pass
         finally:
             clients.discard(ws)
+            if not clients and controller.voice:
+                controller.voice.stop()
             # Never leave a mouse button stuck down after a disconnect.
             try:
                 controller.backend.release_all()
@@ -196,6 +237,7 @@ async def serve(controller, host="127.0.0.1", port=8765, origins=None):
                 pass
             log.info("client disconnected")
 
+    controller.loop = asyncio.get_running_loop()
     controller.broadcast = lambda msg: websockets.broadcast(clients, json.dumps(msg))
 
     async def watchdog_loop():

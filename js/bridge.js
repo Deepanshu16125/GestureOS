@@ -25,6 +25,7 @@ export class BridgeClient{
         this.pingTimer=setInterval(()=>this.ping(),500);this.ping();break;
       case 'state':this.killed=!!m.killed;this.emit('state',{killed:this.killed,reason:m.reason||(this.killed?'kill':'resume')});this.emit('status',this.killed?'killed':'connected');break;
       case 'pong':{const t=this.pending.get(m.id);if(t!==undefined){this.rtt=performance.now()-t;this.pending.delete(m.id);this.emit('rtt',this.rtt);}break;}
+      case 'voice':case 'voice_level':case 'voice_status':case 'voice_devices':this.emit(m.type,m);break;
       case 'error':
         if(m.code==='failsafe'){this.killed=true;this.emit('state',{killed:true,reason:'failsafe'});this.emit('status','killed');}
         if(m.code!=='rate_limited'&&m.code!=='killed')this.emit('log',`Bridge error ${m.code}: ${m.message||''}`);break;
