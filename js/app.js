@@ -1,15 +1,16 @@
-import {features,classify,signInfo,pinchRatio,Smoother,EMA} from './gestures.js';
-import {KNN} from './knn.js';
-import {BridgeClient} from './bridge.js';
-import {OneEuro2D,PinchFSM,mapInner} from './filters.js';
+import {features,classify,signInfo,pinchRatio,Smoother,EMA,fingerDebug} from './gestures.js?v=8';
+import {KNN} from './knn.js?v=8';
+import {BridgeClient} from './bridge.js?v=8';
+import {OneEuro2D,PinchFSM,mapInner} from './filters.js?v=8';
 const $=id=>document.getElementById(id);
 const video=$('video'),ov=$('overlay'),octx=ov.getContext('2d');
 let landmarker=null,mode='cursor',running=false,lastVideoTime=-1;
-const smoother=new Smoother(7),knn=new KNN();
+const smoother=new Smoother(250),knn=new KNN();
 // Shared cursor pipeline: inner-70% mapping -> One Euro filter -> pinch FSM (hysteresis + 200 ms lookback).
 const cursorF=new OneEuro2D(1.0,0.007),pinch=new PinchFSM();
 let curPos=null,pinchEv=[];
-const tune=()=>{cursorF.set(+$('minCutoff').value,+$('beta').value);$('minCutoffV').textContent=(+$('minCutoff').value).toFixed(2);$('betaV').textContent=(+$('beta').value).toFixed(3);};
+let fpsNow=30;const adapt=()=>Math.min(3,Math.max(1,30/Math.max(1,fpsNow)));
+const tune=()=>{cursorF.set(+$('minCutoff').value*adapt(),+$('beta').value);$('minCutoffV').textContent=(+$('minCutoff').value).toFixed(2);$('betaV').textContent=(+$('beta').value).toFixed(3);};
 ['minCutoff','beta'].forEach(id=>$(id).oninput=tune);tune();
 const EMO={open_palm:'🖐 Open Palm',fist:'✊ Fist',point:'☝️ Point',pinch:'🤏 Pinch',thumbs_up:'👍 Thumbs Up',thumbs_down:'👎 Thumbs Down',peace:'✌️ Peace',rock:'🤘 Rock',unknown:'❔ Unknown',none:'— No hand'};
 const log=m=>{const li=document.createElement('li');li.textContent=new Date().toLocaleTimeString()+'  '+m;$('log').prepend(li);while($('log').children.length>40)$('log').lastChild.remove();};
@@ -32,16 +33,17 @@ $('startBtn').onclick=async()=>{
   try{
     const {HandLandmarker,FilesetResolver}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
     const fs=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
-    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2});
+    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:+($('numHands').value||1),minHandDetectionConfidence:.5,minTrackingConfidence:.5});
     try{landmarker=await HandLandmarker.createFromOptions(fs,opts('GPU'));}catch{landmarker=await HandLandmarker.createFromOptions(fs,opts('CPU'));}
-    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480}});
+    const [cw,ch]=($('camRes').value||'640x480').split('x').map(Number);
+    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{width:cw,height:ch,frameRate:{ideal:30}}});
     await video.play();running=true;$('camMsg').style.display='none';$('startBtn').textContent='Camera live';log('Camera + model ready');requestAnimationFrame(loop);
   }catch(e){$('camMsg').textContent='Error: '+e.message+' (needs webcam, internet for first model load, and http://localhost)';}
 };
 // Perf
 let frames=0,fpsT=performance.now(),fpsHist=[];
 function perf(lat){frames++;const n=performance.now();$('lat').textContent=lat.toFixed(1)+' ms';
-  if(n-fpsT>=500){const f=frames*1000/(n-fpsT);frames=0;fpsT=n;$('fps').textContent=f.toFixed(0);fpsHist.push(f);if(fpsHist.length>52)fpsHist.shift();drawChart();}}
+  if(n-fpsT>=500){const f=frames*1000/(n-fpsT);frames=0;fpsT=n;$('fps').textContent=f.toFixed(0);fpsNow=f;tune();$('lowFps').classList.toggle('on',f<12);fpsHist.push(f);if(fpsHist.length>52)fpsHist.shift();drawChart();}}
 function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#8C8F7F';x.lineWidth=1;x.beginPath();
   fpsHist.forEach((f,i)=>{const px=i*(c.width/51),py=c.height-1-Math.min(f,60)/60*(c.height-2);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
 const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
@@ -72,7 +74,7 @@ function processHands(hands){
       if(recording)record(vec);}
     if(!hands.length){pinchEv=pinch.update(null);cursorF.reset();curPos=null;}
     updatePinchMeter(pinch.ratio,pinch.closed);
-    $('raw').textContent=g;const sm=smoother.push(g);$('conf').textContent=(conf*sm.ratio*100).toFixed(0)+'%';
+    $('raw').textContent=g;$('fstate').textContent=lm?fingerDebug(lm):'—';const sm=smoother.push(g);$('conf').textContent=(conf*sm.ratio*100).toFixed(0)+'%';
     $('gestureBadge').textContent=NAME(sm.label);
     if(sm.label!==prevG){if(sm.label!=='none')log('Gesture: '+sm.label);prevG=sm.label;}
     updateHud(sm.label);
@@ -81,24 +83,41 @@ function processHands(hands){
 }
 // ---------- Air Mouse: the fingertip drives a page cursor; a pinch clicks the element under it.
 const pad=$('pad'),vc=$('vcursor'),pc=$('pageCursor');let clicks=0;
-pad.querySelectorAll('.target').forEach(t=>t.addEventListener('click',()=>{clicks++;$('clickCount').textContent=clicks;t.classList.add('hit');setTimeout(()=>t.classList.remove('hit'),300);log('Click on '+t.textContent);}));
+pad.querySelectorAll('.target').forEach(t=>t.addEventListener('click',()=>{clicks++;$('clickCount').textContent=clicks;t.classList.add('hit');pressFx(t);setTimeout(()=>t.classList.remove('hit'),300);lastAct('clicked '+t.textContent+' (#'+clicks+')');log('Click on '+t.textContent);}));
 const toPage=q=>({x:q.x*innerWidth,y:q.y*innerHeight});
 function airMouse(g,lm){if(!lm||!curPos){pc.classList.add('hidden');return;}
   const p=toPage(curPos);pc.classList.remove('hidden');pc.style.left=p.x+'px';pc.style.top=p.y+'px';pc.classList.toggle('down',pinch.closed);
   const r=pad.getBoundingClientRect();vc.style.left=(p.x-r.left)+'px';vc.style.top=(p.y-r.top)+'px';
   const under=document.elementFromPoint(p.x,p.y);pad.querySelectorAll('.target').forEach(t=>t.classList.toggle('hover',t===under));
-  for(const e of pinchEv)if(e.type==='up'&&e.click&&!e.lost){const q=toPage(pinch.downPos||curPos),el=document.elementFromPoint(q.x,q.y);clickRing();
+  for(const e of pinchEv)if(e.type==='up'&&e.click&&!e.lost){const q=toPage(pinch.downPos||curPos),el=document.elementFromPoint(q.x,q.y);clickRing();ripple(q.x,q.y);if(!el||!el.closest||!el.closest('.target'))lastAct('click (nothing there)');
     if(el&&el!==document.body){el.click();if(el.matches('input,textarea'))el.focus();log('Air click → '+(el.id?'#'+el.id:el.tagName.toLowerCase()+(el.textContent?` "${el.textContent.trim().slice(0,16)}"`:'')));}}}
+// ---------- Air buttons (Draw / Slides): hover + pinch presses any .airbtn on the stage
+const lastAct=t=>{$('lastAct').textContent=t;};
+function ripple(x,y){const el=document.createElement('div');el.className='ripple';el.style.left=x+'px';el.style.top=y+'px';document.body.append(el);setTimeout(()=>el.remove(),600);}
+function pressFx(el){el.classList.add('pressed');setTimeout(()=>el.classList.remove('pressed'),260);}
+function airButtons(lm){if(!lm||!curPos){pc.classList.add('hidden');document.querySelectorAll('.airbtn.hover').forEach(b=>b.classList.remove('hover'));return null;}
+  const p=toPage(curPos);pc.classList.remove('hidden');pc.style.left=p.x+'px';pc.style.top=p.y+'px';pc.classList.toggle('down',pinch.closed);
+  const el=document.elementFromPoint(p.x,p.y),btn=el&&el.closest?el.closest('.airbtn'):null;
+  document.querySelectorAll('.airbtn').forEach(b=>b.classList.toggle('hover',b===btn));
+  for(const e of pinchEv)if(e.type==='up'&&e.click&&!e.lost){const q=toPage(pinch.downPos||curPos),t=document.elementFromPoint(q.x,q.y),b=t&&t.closest?t.closest('.airbtn'):null;
+    ripple(q.x,q.y);if(b){pressFx(b);b.click();lastAct('pressed '+(b.dataset.name||b.textContent.trim()));log('Air press → '+(b.dataset.name||b.textContent.trim()));}}
+  return btn;}
 // ---------- Air Draw
 const dc=$('drawCanvas'),dctx=dc.getContext('2d');let last=null,fistT=0;const dEma=new EMA(.5);
 dctx.lineCap='round';
-function airDraw(g,lm){if(!lm){last=null;return;}
+let mid=null;const CLEAR_MS=1200;
+function airDraw(g,lm){const overBtn=airButtons(lm);if(!lm){last=null;mid=null;holdClear(false);return;}
   const p=dEma.update((1-lm[8].x)*dc.width,lm[8].y*dc.height);
-  if(g==='pinch'||g==='point'){if(last){dctx.strokeStyle=$('penColor').value;dctx.lineWidth=+$('penSize').value;dctx.beginPath();dctx.moveTo(last.x,last.y);dctx.lineTo(p.x,p.y);dctx.stroke();}last={...p};}
-  else last=null;
-  // thumbs up held 0.8 s clears (ring shows progress)
-  if(g==='thumbs_up'){if(!fistT)fistT=performance.now();const f=Math.min(1,(performance.now()-fistT)/800);$('drawHold').style.setProperty('--p',f);$('drawHold').classList.add('on');
-    if(f>=1){clearDraw();fistT=Infinity;}}else{fistT=0;$('drawHold').classList.remove('on');}}
+  if((g==='pinch'||g==='point')&&!overBtn){
+    if(last){dctx.strokeStyle=$('penColor').value;dctx.lineWidth=+$('penSize').value;dctx.lineJoin='round';
+      // smooth: quadratic through midpoints, so slow cameras still give a continuous curve
+      const m={x:(last.x+p.x)/2,y:(last.y+p.y)/2};dctx.beginPath();dctx.moveTo((mid||last).x,(mid||last).y);dctx.quadraticCurveTo(last.x,last.y,m.x,m.y);dctx.stroke();mid=m;}
+    last={...p};}
+  else{last=null;mid=null;} // closed hand / fist / palm = pen up, nothing else
+  holdClear(g==='thumbs_up');}
+function holdClear(on){const el=$('drawHold');if(!on){fistT=0;el.classList.remove('on');el.style.setProperty('--p',0);return;}
+  if(!fistT)fistT=performance.now();const f=Math.min(1,(performance.now()-fistT)/CLEAR_MS);el.style.setProperty('--p',f);el.classList.add('on');
+  if(f>=1&&fistT!==Infinity){clearDraw();lastAct('cleared (thumbs up)');fistT=Infinity;}}
 const clearDraw=()=>{dctx.clearRect(0,0,dc.width,dc.height);log('Canvas cleared');};$('clearDraw').onclick=clearDraw;
 $('saveDraw').onclick=()=>{const a=document.createElement('a');a.download='airdraw.png';a.href=dc.toDataURL();a.click();};
 // ---------- Slides: point-and-hold at an edge, or a quick open-palm swipe
@@ -107,10 +126,10 @@ let si=0,hist=[],cool=0;
 function showSlide(){$('slide').textContent=SLIDES[si][0];$('slideNo').textContent=(si+1)+' / '+SLIDES.length;$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
 const flash=dir=>{const el=$(dir>0?'arrowNext':'arrowPrev');el.classList.add('fire');setTimeout(()=>el.classList.remove('fire'),350);};
 const goSlide=k=>{si=(si+k+SLIDES.length)%SLIDES.length;showSlide();flash(k);log('Slide '+(si+1)+'/'+SLIDES.length);};
-$('slidePrev').onclick=()=>goSlide(-1);$('slideNext').onclick=()=>goSlide(1);let edgeT=0,edgeDir=0;
+$('slidePrev').onclick=()=>goSlide(-1);$('arrowPrev').onclick=()=>goSlide(-1);$('arrowNext').onclick=()=>goSlide(1);$('slideNext').onclick=()=>goSlide(1);let edgeT=0,edgeDir=0;
 const HOLD_MS=600,SWIPE_MS=300,SWIPE_DX=0.22,COOL_MS=900;
 function holdUI(dir,f){for(const [id,d] of [['arrowPrev',-1],['arrowNext',1]]){const el=$(id);el.style.setProperty('--p',d===dir?f:0);el.classList.toggle('arming',d===dir&&f>0);}}
-function slides(g,lm){const now=performance.now();
+function slides(g,lm){const now=performance.now();airButtons(lm);
   // 1) point and hold at the left / right edge of the camera frame
   if(lm&&g==='point'){const x=1-lm[8].x,dir=x<0.25?-1:x>0.75?1:0;
     if(dir&&dir===edgeDir){const f=Math.min(1,(now-edgeT)/HOLD_MS);holdUI(dir,now>cool?f:0);if(f>=1&&now>cool){goSlide(dir);cool=now+COOL_MS;edgeT=now;}}

@@ -19,7 +19,7 @@ async def main():
     await pg.evaluate("async()=>{"+JS_HELP+"}")
     R={}
     # gesture labels through the full pipeline
-    R['labels']=await pg.evaluate("()=>Object.fromEntries(['open_palm','fist','point','pinch'].map(k=>[k,run(k,8,.5,.5)]))")
+    R['labels']=await pg.evaluate("async()=>{const o={};for(const k of ['open_palm','fist','point','pinch','thumbs_up']){let g;for(let i=0;i<12;i++){g=run(k,1,.5,.5);await sleep(40);}o[k]=g;}return o;}")
     # Air Mouse: steer onto target A, pinch, release
     R['airmouse']=await pg.evaluate("""async()=>{GestureOS.setMode('cursor');document.getElementById('pad').scrollIntoView({block:'center'});await sleep(100);
       const r=document.querySelector('.target').getBoundingClientRect(),sx=(r.left+r.width/2)/innerWidth,sy=(r.top+r.height/2)/innerHeight;
@@ -33,7 +33,7 @@ async def main():
       for(let i=0;i<40;i++){GestureOS.feed([at('point',x,y)]);await sleep(20);} const s1=GestureOS.slide; document.getElementById('slidePrev').click();
       return {start:s0,afterPointRight:s1,afterPrevBtn:GestureOS.slide,text:document.getElementById('slide').textContent};}""")
     R['draw_thumbs_clear']=await pg.evaluate("""async()=>{GestureOS.setMode('draw');for(let i=0;i<20;i++){run('pinch',1,.3+i*.01,.5);await sleep(5);}const before=GestureOS.drawnPixels();
-      for(let i=0;i<60;i++){GestureOS.feed([H.make(H.POSES.thumbs_up)]);await sleep(16);}return {before,after:GestureOS.drawnPixels()};}""")
+      for(let i=0;i<110;i++){GestureOS.feed([H.make(H.POSES.thumbs_up)]);await sleep(16);}return {before,after:GestureOS.drawnPixels()};}""")
     R['slides_swipe']=await pg.evaluate("""async()=>{GestureOS.setMode('slides');await sleep(1000);const s0=GestureOS.slide;
       for(let i=0;i<14;i++){GestureOS.feed([H.make(H.POSES.open_palm,{cx:0.75-i*0.03})]);await sleep(20);}return {before:s0,after:GestureOS.slide};}""")
     R['sign']=await pg.evaluate("""async()=>{GestureOS.setMode('sign');for(const L of ['V','L','Y']){for(let i=0;i<70;i++){GestureOS.feed([H.make(H.LETTER_POSES[L])]);await sleep(16);}GestureOS.feed([]);await sleep(50);}

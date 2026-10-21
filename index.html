@@ -3,7 +3,7 @@
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0C0D0B"><link rel="icon" href="icons/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css"></head><body>
+<link rel="stylesheet" href="css/style.css?v=8"></head><body>
 <svg class="grain" aria-hidden="true"><filter id="grainF"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grainF)"/></svg>
 
 <header class="bezel-top">
@@ -19,7 +19,7 @@
   <div id="camMsg">Press “Start camera”.<small>All processing happens locally; no video leaves your device.</small></div>
   <div id="legend" class="legend"></div>
   <i class="tick tl"></i><i class="tick tr"></i><i class="tick bl"></i><i class="tick br"></i>
-  <div class="caminfo cap">CAM A · 640×480 · MIRROR</div>
+  <div class="caminfo cap">CAM <select id="camRes" title="Lower = faster on slow laptops"><option value="640x480">640×480</option><option value="320x240">320×240 fast</option></select> HANDS <select id="numHands"><option>1</option><option>2</option></select> · MIRROR <span id="lowFps" class="lowfps">LOW FPS · try 320×240</span></div>
  </div>
 </section>
 
@@ -40,6 +40,8 @@
   <li><span class="q">BACKEND</span><span class="v mono" id="hudBackend">—</span></li>
   <li><span class="q">PING</span><span class="v mono" id="ping">—</span></li>
   <li><span class="q">PINCH</span><span class="v pv"><span id="pinchMeter" class="pmeter"><span id="pinchFill"></span></span><b id="pinchVal" class="mono">—</b></span></li>
+  <li><span class="q">FINGERS</span><span class="v mono" id="fstate">—</span></li>
+  <li><span class="q">LAST</span><span class="v mono" id="lastAct">—</span></li>
   <li><span class="q">PALM</span><span class="v pv"><span class="bar"><span id="palmProg"></span></span><span class="mono unit">2 s pause</span></span></li>
  </ol>
  <dl class="readouts g-read">
@@ -51,14 +53,14 @@
 <section class="stage">
  <div class="mode" id="mode-cursor"><div class="mhead"><span class="idx">01</span><h2>Air Mouse</h2><p>Your index fingertip moves the amber ring anywhere on the page. A quick thumb–index pinch clicks what is under it. Try the boxes.</p></div>
   <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p class="cap foot-cap">Clicks <b id="clickCount" class="mono">0</b></p></div>
- <div class="mode hidden" id="mode-draw"><div class="mhead"><span class="idx">02</span><h2>Air Draw</h2><p>Pinch (or point) and move to draw. Open your palm to lift the pen. Hold a <b>thumbs up</b> for 0.8 s to clear.</p></div>
-  <div class="row"><label class="cap">Colour <input type="color" id="penColor" value="#C4A035"></label><label class="cap">Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn">Clear</button><button id="saveDraw" class="btn">Save PNG</button><span id="drawHold" class="hring" title="thumbs up: clearing"><i></i><em>clear</em></span></div>
+ <div class="mode hidden" id="mode-draw"><div class="mhead"><span class="idx">02</span><h2>Air Draw</h2><p>Pinch (or point) and move to draw. Open your palm to lift the pen. Closing your hand just lifts the pen. To clear: hold a <b>thumbs up</b> for 1.2 s (ring fills), or point at <b>CLEAR</b> and pinch.</p></div>
+  <div class="row"><label class="cap">Colour <input type="color" id="penColor" value="#C4A035"></label><label class="cap">Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn airbtn bigbtn" data-name="clear">Clear</button><button id="saveDraw" class="btn">Save PNG</button><span id="drawHold" class="hring" title="thumbs up: clearing"><i></i><em>clear</em></span></div>
   <div class="canvasbox"><canvas id="drawCanvas" width="960" height="540"></canvas></div></div>
- <div class="mode hidden" id="mode-slides"><div class="mhead"><span class="idx">03</span><h2>Slides</h2><p>Two ways to change slide. The arrows fill up while a move is being detected.</p></div>
-  <div class="slidestage"><button id="arrowPrev" class="harrow" aria-label="previous"><span>←</span></button><div id="slide" class="slide"></div><button id="arrowNext" class="harrow" aria-label="next"><span>→</span></button></div>
+ <div class="mode hidden" id="mode-slides"><div class="mhead"><span class="idx">03</span><h2>Slides</h2><p>Move the amber ring onto <b>PREV</b> or <b>NEXT</b> and pinch to press. Or point-and-hold at a camera edge, or swipe an open palm.</p></div>
+  <div class="slidestage"><button id="arrowPrev" class="harrow airbtn" data-name="prev" aria-label="previous"><span>←</span><small>PREV</small></button><div id="slide" class="slide"></div><button id="arrowNext" class="harrow airbtn" data-name="next" aria-label="next"><span>→</span><small>NEXT</small></button></div>
   <div class="slidebar"><button id="slidePrev" class="btn">← Back</button><b id="slideNo" class="mono">1 / 5</b><button id="slideNext" class="btn">Next →</button>
    <span id="swipeMeter" class="swipe" data-dir="→"><i></i></span></div>
-  <ol class="howto"><li><b>Point &amp; hold</b> your index finger at the right edge of the camera frame for 0.6 s → next. Left edge → back.</li><li><b>Palm swipe</b>: open hand, sweep it sideways quickly (in about a third of a second) → next or back. The bar shows how fast the swipe is.</li><li>After a change there is a short pause (0.9 s) so one move is not counted twice.</li></ol></div>
+  <ol class="howto"><li><b>Pinch-press</b> the big PREV / NEXT buttons with the air cursor.</li><li><b>Point &amp; hold</b> your index finger at the right edge of the camera frame for 0.6 s → next. Left edge → back.</li><li><b>Palm swipe</b>: open hand, sweep it sideways quickly (in about a third of a second) → next or back. The bar shows how fast the swipe is.</li><li>After a change there is a short pause (0.9 s) so one move is not counted twice.</li></ol></div>
  <div class="mode hidden" id="mode-sign"><div class="mhead"><span class="idx">04</span><h2>Sign Letters</h2><p>Hold one handshape still for 0.8 s to type it. Nine letters are supported.</p></div>
   <div class="signgrid"><div class="signlive"><div id="signLetter" class="bigletter">?</div><span id="signHold" class="hring big"><i></i></span>
     <dl class="sread"><dt class="cap">Closest</dt><dd id="signClosest" class="mono">—</dd><dt class="cap">Confidence</dt><dd id="signConf" class="mono">—</dd></dl></div>
@@ -101,4 +103,4 @@
  <span class="mono foot">Deepanshu · 2026</span>
 </footer>
 <div id="pageCursor" class="pagecursor hidden"></div>
-<script type="module" src="js/app.js"></script></body></html>
+<script type="module" src="js/app.js?v=8"></script></body></html>

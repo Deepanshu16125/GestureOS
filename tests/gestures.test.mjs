@@ -23,3 +23,11 @@ test('sign: an ambiguous half-open hand gives no letter but still reports the cl
 test('PinchFSM hysteresis: enter <0.35, stays closed at 0.42, exits >0.5',()=>{
   const f=new PinchFSM();assert.equal(f.update(0.3,0)[0].type,'down');assert.equal(f.update(0.42,10).length,0);assert.ok(f.closed);
   const up=f.update(0.55,100);assert.equal(up[0].type,'up');assert.equal(up[0].click,true);assert.equal(new PinchFSM().update(0.4,0).length,0);});
+import {thumbsUpScore,fingerDebug,Smoother} from '../js/gestures.js';
+for(const rot of [0,45,90,135,180,-90])for(const mirror of [false,true])
+  test(`thumbs up in any orientation: rot ${rot} mirror ${mirror}`,()=>assert.equal(classify(hand({thumb:'out',fingers:['curl','curl','curl','curl'],rot,mirror})).name,'thumbs_up'));
+test('closing hand / fist / A-shape is never thumbs up',()=>{
+  for(const fingers of [['curl','curl','curl','curl'],['half','half','half','half'],['half','curl','curl','curl']])for(const thumb of ['in','side'])
+    assert.notEqual(classify(hand({thumb,fingers})).name,'thumbs_up',thumb+JSON.stringify(fingers));});
+test('finger debug string',()=>{assert.equal(fingerDebug(make(POSES.point)),'T- I+ M- R- P-');assert.match(fingerDebug(hand({thumb:'out',fingers:['curl','curl','curl','curl']})),/^T\+ I- M- R- P-$/);});
+test('Smoother votes over time, not frames (5 fps)',()=>{const s=new Smoother(250);s.push('fist',0);s.push('point',200);const r=s.push('point',400);assert.equal(r.label,'point');});

@@ -44,12 +44,22 @@ export const curled=(lm,i)=>d2(lm[TIPS[i]],lm[0])<d2(lm[PIPS[i]],lm[0]);
  * pinchClosed: hysteresis state from PinchFSM. prev: last raw label (fist hysteresis:
  * entering fist needs all four fingers 'curl'; staying needs none of them 'ext').
  */
+/** Orientation-independent curl: tip-to-wrist / MCP-to-wrist. Curled fingers fold back toward the wrist (< ~1.25). */
+export const curlRatio=(lm,k)=>d2(lm[TIPS[k]],lm[0])/(d2(lm[MCPS[k]],lm[0])||1e-6);
+/** Thumbs up in ANY orientation: thumb straight-ish and far from the palm centre (middle MCP 9),
+ *  tip farther from the wrist than its IP joint; the other four folded (curl ratio or angle state). */
+export function thumbsUpScore(lm){const hs=handSize(lm);
+  const fold=[1,2,3,4].every(k=>curlRatio(lm,k)<1.25||fingerState(lm,k)==='curl');
+  const away=d2(lm[4],lm[9])/hs, straight=angle(lm[2],lm[3],lm[4]), outward=d2(lm[4],lm[0])>d2(lm[3],lm[0]);
+  return {ok:fold&&away>0.65&&straight>130&&outward&&pinchRatio(lm)>0.5,away,straight,fold};}
+/** Debug: compact finger-state string, e.g. "T+ I+ M- R- P-" (+ extended, ~ half, - curled). */
+export function fingerDebug(lm){const c={ext:'+',mid:'~',curl:'-'};const t=thumbsUpScore(lm);
+  return `T${thumbState(lm).ext||t.away>0.65?'+':'-'} `+['I','M','R','P'].map((n,j)=>n+c[fingerState(lm,j+1)]).join(' ');}
 export function classify(lm,pinchClosed=null,prev=null){
   const f=[1,2,3,4].map(k=>fingerState(lm,k)), th=thumbState(lm), pinch=pinchRatio(lm), hs=handSize(lm);
   const [i,m,r,p]=f, ext=x=>x==='ext', notExt=x=>x!=='ext', curl=x=>x==='curl';
   const fourCurl=f.every(curl), fourNotExt=f.every(notExt);
-  if(th.ext&&th.up&&fourNotExt) return {name:'thumbs_up',conf:.9};
-  if(th.ext&&!th.up&&fourNotExt&&(lm[4].y-lm[2].y)/hs>0.45) return {name:'thumbs_down',conf:.8};
+  if(thumbsUpScore(lm).ok) return {name:'thumbs_up',conf:.9};
   if((pinchClosed??pinch<PINCH_ENTER) && !(curl(m)&&curl(r)&&curl(p))) return {name:'pinch',conf:Math.max(.5,Math.min(1,1-pinch))};
   if(fourCurl||(prev==='fist'&&fourNotExt)) return {name:'fist',conf:.9};
   if(f.every(ext)) return {name:'open_palm',conf:.9};
@@ -78,9 +88,12 @@ export function signInfo(lm){
 export function signLetter(lm){return signInfo(lm).letter;}
 /** Majority-vote smoother over a sliding window + EMA point filter. */
 export class Smoother{
-  constructor(n=7){this.n=n;this.buf=[];}
-  push(label){this.buf.push(label);if(this.buf.length>this.n)this.buf.shift();
-    const c={};for(const l of this.buf)c[l]=(c[l]||0)+1;
+  /** Time-based majority vote over the last `ms` milliseconds (frame-rate independent; always keeps ≥2 samples). */
+  constructor(ms=250){this.ms=ms;this.buf=[];}
+  push(label,t=(typeof performance!=='undefined'?performance.now():Date.now())){this.buf.push({label,t});
+    while(this.buf.length>2&&t-this.buf[0].t>this.ms)this.buf.shift();
+    const labels=this.buf.map(b=>b.label);
+    const c={};for(const l of labels)c[l]=(c[l]||0)+1;
     let best=label,bc=0;for(const k in c)if(c[k]>bc){bc=c[k];best=k;}
     return {label:best,ratio:bc/this.buf.length};}
 }

@@ -232,3 +232,23 @@ body.stack .g-rows li{min-height:28px;padding:3px 0}
 #app>.details{align-content:space-between}
 @media(min-height:900px){#app{grid-template-rows:minmax(0,1.6fr) minmax(0,1fr)}body.stack #app{grid-template-rows:minmax(0,1fr) auto}
  .details #gestureBadge{font-size:52px}.g-rows li{min-height:38px}.g-rows .q{font-size:15px}.g-rows .v{font-size:13.5px}.g-read dd{font-size:17px}.armword{font-size:64px}.g-arm .kill{height:76px}.lever{height:76px}}
+/* v8: press feedback, big air buttons, low-fps hint, sign card always visible */
+.ripple{position:fixed;z-index:46;width:14px;height:14px;margin:-7px 0 0 -7px;border:2px solid var(--accent);border-radius:50%;pointer-events:none;animation:rip .6s ease-out forwards}
+@keyframes rip{to{transform:scale(6);opacity:0}}
+.pressed{animation:press .26s ease-out}@keyframes press{0%{transform:scale(.92);background:var(--accent);color:var(--bg)}100%{transform:none}}
+.airbtn.hover{outline:2px solid var(--accent);outline-offset:2px}
+.bigbtn{padding:10px 22px;font-size:16px}
+.slidestage{grid-template-columns:120px minmax(0,1fr) 120px}
+.harrow{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:48px}
+.harrow small{position:relative;font-family:var(--cond);font-weight:800;font-size:18px;letter-spacing:.16em}
+.caminfo select{background:var(--bg);color:var(--ink);border:1px solid var(--line-2);font-family:var(--mono);font-size:11px;padding:0 2px;pointer-events:auto}
+.cam .caminfo{pointer-events:auto;z-index:3}
+.lowfps{display:none;color:var(--alert);margin-left:8px}.lowfps.on{display:inline}
+/* sign: card first-class and never clipped */
+#mode-sign{overflow:auto}
+#mode-sign .signgrid{flex:1 0 auto;grid-template-columns:minmax(150px,.6fr) minmax(0,1.4fr)}
+#mode-sign .bigletter{font-size:clamp(70px,8vw,130px)}
+#mode-sign .signcard{min-height:0}
+@media(max-height:760px){#mode-sign .mhead p{display:none}#mode-sign .signcard li{padding:3px 0}}
+.stage{overflow:hidden}
+#tabs{flex-wrap:nowrap;overflow:hidden;gap:2px 14px}#tabs button{white-space:nowrap}@media(max-width:1440px){#tabs{gap:2px 9px;margin-left:4px}#tabs button{font-size:13.5px;letter-spacing:.06em}.bezel-top{gap:12px}.tc{margin-left:8px}}
