@@ -4,7 +4,7 @@ import asyncio,sys,json
 from playwright.async_api import async_playwright
 LOG=sys.argv[1] if len(sys.argv)>1 else 'bridge.log'
 HELP="""window.H=await import('/tests/hands.mjs');
-window.at=(pose,x,y)=>{const h=H.hand(H.POSES[pose]);const dx=x-h[8].x,dy=y-h[8].y;return h.map(p=>({x:p.x+dx,y:p.y+dy,z:0}));};
+window.at=(pose,x,y)=>{const h=H.make(H.POSES[pose]);const dx=x-h[8].x,dy=y-h[8].y;return h.map(p=>({x:p.x+dx,y:p.y+dy,z:0}));};
 window.sleep=ms=>new Promise(r=>setTimeout(r,ms));
 window.frames=async(pose,n,x=.5,y=.5)=>{for(let i=0;i<n;i++){GestureOS.feed([at(pose,x+i*.002,y)]);await sleep(16);}};"""
 def lines(): return open(LOG).read().splitlines()

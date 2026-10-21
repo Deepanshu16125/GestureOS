@@ -1,4 +1,4 @@
-import {features,classify,signLetter,pinchRatio,Smoother,EMA} from './gestures.js';
+import {features,classify,signInfo,pinchRatio,Smoother,EMA} from './gestures.js';
 import {KNN} from './knn.js';
 import {BridgeClient} from './bridge.js';
 import {OneEuro2D,PinchFSM,mapInner} from './filters.js';
@@ -15,6 +15,11 @@ const EMO={open_palm:'🖐 Open Palm',fist:'✊ Fist',point:'☝️ Point',pinch
 const log=m=>{const li=document.createElement('li');li.textContent=new Date().toLocaleTimeString()+'  '+m;$('log').prepend(li);while($('log').children.length>40)$('log').lastChild.remove();};
 // Tabs
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(b.dataset.mode!==mode&&typeof pauseOS==='function')pauseOS('mode change');mode=b.dataset.mode;document.body.classList.toggle('drawer-open',mode==='train');document.querySelectorAll('.mode').forEach(m=>m.classList.add('hidden'));$('mode-'+mode).classList.remove('hidden');log('Mode → '+mode);});
+// Layout: split (default) or stack (?layout=stack)
+const setLayout=l=>{document.body.classList.toggle('stack',l==='stack');$('layoutBtn').querySelector('b').textContent=l==='stack'?'STACK':'SPLIT';
+  const u=new URL(location.href);if(l==='stack')u.searchParams.set('layout','stack');else u.searchParams.delete('layout');history.replaceState(null,'',u);};
+setLayout(new URLSearchParams(location.search).get('layout')==='stack'?'stack':'split');
+$('layoutBtn').onclick=()=>setLayout(document.body.classList.contains('stack')?'split':'stack');
 // Drawer (trainer) + bezel clocks
 const tab=m=>document.querySelector(`#tabs button[data-mode="${m}"]`).click();
 $('drawerBtn').onclick=()=>tab(mode==='train'?'cursor':'train');$('drawerClose').onclick=()=>tab('cursor');
@@ -43,7 +48,7 @@ const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11]
 function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#9AA87A';octx.lineWidth=Math.max(1,W/640);
   for(const [a,b] of CONN){octx.beginPath();octx.moveTo(lm[a].x*W,lm[a].y*H);octx.lineTo(lm[b].x*W,lm[b].y*H);octx.stroke();}
   for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,2,0,7);octx.fillStyle='#C9D3A6';octx.fill();}}
-let prevG='none';
+let prevG='none',prevRaw=null;
 function loop(){
   if(!running)return;
   if(video.currentTime!==lastVideoTime){lastVideoTime=video.currentTime;frameCt++;$('frameCt').textContent=String(frameCt).padStart(6,'0');
@@ -59,7 +64,7 @@ function processHands(hands){
     let g='none',conf=0,lm=null;pinchEv=[];
     if(hands.length){hands.forEach(drawHand);lm=hands[0];const now=performance.now(),m=mapInner(lm[8].x,lm[8].y);curPos=cursorF.update(m.x,m.y,now);
       pinch.track(curPos,now);pinchEv=pinch.update(pinchRatio(lm),now);
-      const r=classify(lm,pinch.closed);g=r.name;conf=r.conf;
+      const r=classify(lm,pinch.closed,prevRaw);prevRaw=r.name;g=r.name;conf=r.conf;
       const vec=features(lm);
       if(Object.keys(knn.classes()).length){const p=knn.predict(vec,+$('kVal').value||5);
         if(p){$('knnPred').textContent=p.label;$('knnConf').textContent='('+(p.conf*100).toFixed(0)+'%)';
@@ -91,30 +96,38 @@ function airDraw(g,lm){if(!lm){last=null;return;}
   const p=dEma.update((1-lm[8].x)*dc.width,lm[8].y*dc.height);
   if(g==='pinch'||g==='point'){if(last){dctx.strokeStyle=$('penColor').value;dctx.lineWidth=+$('penSize').value;dctx.beginPath();dctx.moveTo(last.x,last.y);dctx.lineTo(p.x,p.y);dctx.stroke();}last={...p};}
   else last=null;
-  if(g==='fist'){if(!fistT)fistT=performance.now();else if(performance.now()-fistT>1000){dctx.clearRect(0,0,dc.width,dc.height);fistT=0;log('Canvas cleared');}}else fistT=0;}
+  // thumbs up held 0.8 s clears (ring shows progress)
+  if(g==='thumbs_up'){if(!fistT)fistT=performance.now();const f=Math.min(1,(performance.now()-fistT)/800);$('drawHold').style.setProperty('--p',f);$('drawHold').classList.add('on');
+    if(f>=1){clearDraw();fistT=Infinity;}}else{fistT=0;$('drawHold').classList.remove('on');}}
 const clearDraw=()=>{dctx.clearRect(0,0,dc.width,dc.height);log('Canvas cleared');};$('clearDraw').onclick=clearDraw;
 $('saveDraw').onclick=()=>{const a=document.createElement('a');a.download='airdraw.png';a.href=dc.toDataURL();a.click();};
-// ---------- Slides / Media
+// ---------- Slides: point-and-hold at an edge, or a quick open-palm swipe
 const SLIDES=[['GestureOS','#161714','#E4E2D4'],['On-device ML, privacy first','#E4E2D4','#0C0D0B'],['21 landmarks per hand','#1C1D19','#C4A035'],['Custom gestures via k-NN','#C4A035','#0C0D0B'],['Thank you','#0C0D0B','#E4E2D4']];
-let si=0,playing=false,muted=false,prog=0,hist=[],cool=0;
+let si=0,hist=[],cool=0;
 function showSlide(){$('slide').textContent=SLIDES[si][0];$('slideNo').textContent=(si+1)+' / '+SLIDES.length;$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
-const goSlide=k=>{si=(si+k+SLIDES.length)%SLIDES.length;showSlide();log('Slide '+(si+1)+'/'+SLIDES.length);};
+const flash=dir=>{const el=$(dir>0?'arrowNext':'arrowPrev');el.classList.add('fire');setTimeout(()=>el.classList.remove('fire'),350);};
+const goSlide=k=>{si=(si+k+SLIDES.length)%SLIDES.length;showSlide();flash(k);log('Slide '+(si+1)+'/'+SLIDES.length);};
 $('slidePrev').onclick=()=>goSlide(-1);$('slideNext').onclick=()=>goSlide(1);let edgeT=0,edgeDir=0;
+const HOLD_MS=600,SWIPE_MS=300,SWIPE_DX=0.22,COOL_MS=900;
+function holdUI(dir,f){for(const [id,d] of [['arrowPrev',-1],['arrowNext',1]]){const el=$(id);el.style.setProperty('--p',d===dir?f:0);el.classList.toggle('arming',d===dir&&f>0);}}
 function slides(g,lm){const now=performance.now();
+  // 1) point and hold at the left / right edge of the camera frame
   if(lm&&g==='point'){const x=1-lm[8].x,dir=x<0.25?-1:x>0.75?1:0;
-    if(dir&&dir===edgeDir){if(now-edgeT>500&&now>cool){goSlide(dir);cool=now+900;edgeT=now;}}else{edgeDir=dir;edgeT=now;}}else edgeDir=0;
-  if(lm&&g==='open_palm'){hist.push({x:1-lm[0].x,t:now});hist=hist.filter(h=>now-h.t<400);
-    if(hist.length>3&&now>cool){const dx=hist.at(-1).x-hist[0].x;
-      if(Math.abs(dx)>.18){log('Swipe '+(dx>0?'→':'←'));goSlide(dx>0?1:-1);hist=[];cool=now+700;}}}else hist=[];
-  if(g!==prevAct&&now>cool){if(g==='thumbs_up'){playing=true;log('Play');}if(g==='fist'){playing=false;log('Pause');}if(g==='peace'){muted=!muted;log(muted?'Mute':'Unmute');}}
-  prevAct=g;$('mediaState').textContent=playing?'▶ Playing':'⏸ Paused';$('muteState').textContent=muted?'🔇':'🔊';
-  if(playing){prog=(prog+.15)%100;$('mediaProg').style.width=prog+'%';}}
-let prevAct='';
-// ---------- Sign
+    if(dir&&dir===edgeDir){const f=Math.min(1,(now-edgeT)/HOLD_MS);holdUI(dir,now>cool?f:0);if(f>=1&&now>cool){goSlide(dir);cool=now+COOL_MS;edgeT=now;}}
+    else{edgeDir=dir;edgeT=now;holdUI(0,0);}}else{edgeDir=0;holdUI(0,0);}
+  // 2) open-palm swipe: wrist x velocity over ~300 ms
+  if(lm&&g==='open_palm'){hist.push({x:1-lm[0].x,t:now});hist=hist.filter(h=>now-h.t<=SWIPE_MS);
+    if(hist.length>=3&&now>cool){const dx=hist.at(-1).x-hist[0].x;$('swipeMeter').style.setProperty('--p',Math.min(1,Math.abs(dx)/SWIPE_DX));$('swipeMeter').dataset.dir=dx>0?'→':'←';
+      if(Math.abs(dx)>SWIPE_DX){log('Swipe '+(dx>0?'→':'←'));goSlide(dx>0?1:-1);hist=[];cool=now+COOL_MS;}}}
+  else{hist=[];$('swipeMeter').style.setProperty('--p',0);}}
+// ---------- Sign: hold a letter steady ~0.8 s to type it
 let sCand=null,sT=0;
-function sign(lm){const L=lm?signLetter(lm):null;$('signLetter').textContent=L===' '?'␣':(L||'?');
-  if(L!==sCand){sCand=L;sT=performance.now();return;}
-  if(L&&performance.now()-sT>800){const t=$('signText');if(!(L===' '&&t.textContent.endsWith(' ')))t.textContent+=L;sT=performance.now()+400;log('Typed "'+L+'"');}}
+function sign(lm){const r=lm?signInfo(lm):{letter:null,closest:null,conf:0};const L=r.letter;
+  $('signLetter').textContent=L===' '?'␣':(L||'?');$('signClosest').textContent=r.closest?(r.closest===' '?'space':r.closest):'—';$('signConf').textContent=lm?(r.conf*100).toFixed(0)+'%':'—';
+  document.querySelectorAll('#signCard li').forEach(li=>li.classList.toggle('on',li.dataset.l===(L||'')));
+  if(L!==sCand){sCand=L;sT=performance.now();$('signHold').style.setProperty('--p',0);return;}
+  if(L){const f=Math.min(1,(performance.now()-sT)/800);$('signHold').style.setProperty('--p',f);
+    if(f>=1){const t=$('signText');if(!(L===' '&&t.textContent.endsWith(' ')))t.textContent+=L;sT=performance.now()+400;log('Typed "'+L+'"');}}}
 $('signClear').onclick=()=>$('signText').textContent='';
 // ---------- Training
 let recording=false,recName='',recN=0;
@@ -134,13 +147,13 @@ function handleMode(g,lm){if(mode==='cursor')airMouse(g,lm);else if(mode==='draw
 
 // ---------- HUD, legend, pinch meter, click ring
 const LEGEND={cursor:[['☝️','Point','move cursor'],['🤏','Pinch','click (hold = press)']],
- draw:[['☝️','Point','draw'],['🖐','Open palm','lift pen'],['✊','Fist 1 s','clear']],
- slides:[['🖐','Swipe','next / prev slide'],['👍','Thumbs up','play'],['✊','Fist','pause'],['✌️','Peace','mute']],
- sign:[['🤟','ASL sign','hold 0.8 s to type'],['🖐','Open palm','space']],
+ draw:[['🤏','Pinch / point','draw'],['🖐','Open palm','lift pen'],['👍','Thumbs up 0.8 s','clear']],
+ slides:[['☝️','Point + hold at edge','next / back'],['🖐','Palm swipe','next / back']],
+ sign:[['🤟','Letter','hold 0.8 s to type'],['🖐','Open hand + thumb','space']],
  train:[['●','Record','60 samples per class'],['🧠','k-NN','live prediction']],
  voice:[['🎙','Say','next · back · draw · mouse · slides · clear · stop']],
  os:[['☝️','Point','move OS cursor'],['🤏','Pinch','click (200 ms lookback)'],['🤏⏱','Pinch > 450 ms','drag'],['✌️↕','Peace up/down','scroll'],['✊','Fist 1 s / Esc','pause'],['🖐','Palm 2 s','pause / re-enable']]};
-const MODE_NAME={voice:'Voice',cursor:'Air Mouse',draw:'Air Draw',slides:'Slides/Media',sign:'Sign Letters',train:'Train',os:'OS Control'};
+const MODE_NAME={voice:'Voice',cursor:'Air Mouse',draw:'Air Draw',slides:'Slides',sign:'Sign Letters',train:'Train',os:'OS Control'};
 let legendMode=null;
 const GKEY=n=>{n=n.toLowerCase();return /pinch/.test(n)?'pinch':/point/.test(n)?'point':/palm|swipe/.test(n)?'open_palm':/fist/.test(n)?'fist':/thumbs/.test(n)?'thumbs_up':/peace/.test(n)?'peace':'';};
 function updateHud(g){$('hudMode').textContent=MODE_NAME[mode];$('hudGesture').textContent=NAME(g).toLowerCase();$('hudFps').textContent=String(Math.min(999,+$('fps').textContent||0)).padStart(3,'0');
@@ -163,7 +176,7 @@ function renderChip(){const c=$('bridgeChip');let cls='off',t='NO BRIDGE';
   else if(bridge.ready){if(controlling()){cls='live';t='CONNECTED · LIVE';}else if(osToggle.checked){cls='connecting';t='RESUMING…';}else{cls='paused';t='CONNECTED · PAUSED'+(pauseReason?' ('+pauseReason+')':'');}}
   $('bridgeState').textContent=t;
   c.className='chip '+cls;c.textContent=t;const armed=controlling();document.body.classList.toggle('armed',armed);
-  $('armCap').textContent=armed?'OS control live · real cursor':(bridge.ready?'Bridge linked · pull the RUN lever to arm':'OS control off · link the bridge first');
+  $('armCap').textContent=armed?'live · real mouse':(bridge.ready?'linked · paused':'off');
   $('hudBackend').textContent=bridge.ready?bridge.backend:'—';}
 bridge.addListener('log',log);
 bridge.addListener('rtt',r=>$('ping').textContent=r.toFixed(1)+' ms');
@@ -229,7 +242,7 @@ $('voiceBtn').onclick=()=>{if(!SR){$('voiceCmd').textContent='Speech recognition
   rec.onend=()=>{listening=false;$('voiceBtn').textContent='● Start listening';$('voiceBtn').classList.remove('on');};
   rec.start();listening=true;$('voiceBtn').textContent='■ Stop listening';$('voiceBtn').classList.add('on');log('Voice: listening');};
 // ---------- Test hook: replay synthetic landmarks without a camera
-window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},
+window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},get typed(){return $('signText').textContent;},
   drawnPixels:()=>{const d=dctx.getImageData(0,0,dc.width,dc.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;}};
 // ---------- PWA
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(()=>log('Offline cache ready (service worker)')).catch(e=>console.warn('SW',e));

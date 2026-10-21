@@ -133,53 +133,102 @@ body.drawer-open .drawer{transform:none}
 #fpsChart{border-bottom:1px solid var(--line-2)}
 .bridgev{flex-wrap:nowrap}.bridgev input{width:150px;min-width:0;flex:1}
 .mhead p{max-width:none;padding-right:18%}.dlive .mhead p{padding-right:0}
-/* v2.1: page cursor, voice, smaller gate so the active mode is visible without scrolling */
+/* ===== v2.3 layout: SPLIT (default) = camera over details on the left 40%, stage right 60%.
+   STACK (?layout=stack) = camera | stage on top, full details band underneath. One 16px rhythm. ===== */
+:root{--g:16px;--pad:20px}
 .pagecursor{position:fixed;z-index:45;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid var(--accent);border-radius:50%;pointer-events:none;box-shadow:0 0 0 1px #000}
 .pagecursor.down{background:var(--accent)}
-.vf{min-height:0}
+.layoutbtn{padding:5px 10px;font-size:12px}.layoutbtn b{color:var(--accent)}
+#app{display:grid;height:calc(100vh - var(--top) - var(--bot));min-height:560px;overflow:hidden;
+ grid-template-columns:minmax(0,40fr) minmax(0,60fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"cam stage" "det stage"}
+#app>.cam{grid-area:cam;padding:var(--pad) var(--pad) 10px var(--pad);border-right:1px solid var(--line);min-height:0;display:flex}
+#app>.details{grid-area:det;border-right:1px solid var(--line);border-top:1px solid var(--line);background:var(--surface);min-height:0;overflow:hidden;
+ padding:14px var(--pad) 12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto 1fr;gap:12px var(--g);
+ grid-template-areas:"ges arm" "rows rows" "read read";align-content:start}
+#app>.stage{grid-area:stage;min-width:0;min-height:0;display:flex;flex-direction:column;padding:var(--pad) 28px 16px;background:var(--bg)}
+/* camera */
+.cam .camwrap{flex:1;width:100%;height:100%;aspect-ratio:auto;max-height:none;min-height:0;position:relative}
+.cam .legend{position:absolute;left:18px;top:16px;font-size:13px}.cam .legend div{height:24px}.cam .legend div em{display:none}
+.cam .caminfo{position:absolute;left:14px;bottom:10px;top:auto;margin:0;font-size:11.5px;color:var(--muted)}
+.tick.tl,.tick.tr{top:12px}.tick.bl,.tick.br{bottom:12px}.tick.tl,.tick.bl{left:auto}.tick.tl,.tick.bl{left:10px}.tick.tr,.tick.br{right:10px}
+#camMsg{font-size:clamp(20px,2vw,28px)}
+/* details groups */
+.g-ges{grid-area:ges;display:flex;justify-content:space-between;align-items:flex-start;gap:var(--g);min-width:0}
+.g-ges .cap{font-size:12px}
+#gestureBadge{font-family:var(--cond);font-weight:800;font-size:clamp(28px,2.5vw,44px);letter-spacing:.05em;line-height:1;white-space:nowrap}
+.details .fpsbox{position:static;display:flex;flex-direction:column;align-items:flex-end}
+#hudFps{font-family:var(--cond);font-weight:700;font-size:clamp(28px,2.4vw,42px);line-height:.9}
+#fpsChart{width:84px;height:22px;margin-top:3px;border-bottom:1px solid var(--line-2)}
+.g-arm{grid-area:arm;display:grid;grid-template-columns:minmax(0,1fr) 26px minmax(0,auto);gap:12px;align-items:center;min-width:0}
+.arm{display:flex;flex-direction:column;min-width:0}
+.armword{font-size:clamp(38px,3.2vw,58px);margin:0;line-height:.86}
+.armword::after{left:-2px;right:-4px}
+#armCap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;margin-top:4px}
+.g-arm .kill{margin:0;height:68px;padding:8px 12px;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px}
+.g-arm .kill span{font-size:26px}.g-arm .kill small{font-size:11px}
+.g-rows{grid-area:rows;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--g);border-top:1px solid var(--line)}
+.g-rows li{display:grid;grid-template-columns:66px minmax(0,1fr);gap:8px;align-items:center;padding:5px 0;border-top:0;border-bottom:1px solid var(--line);min-height:32px}
+.g-rows li:last-child{border-bottom:1px solid var(--line)}
+.g-rows li.wide{grid-column:1/3}
+.g-rows .q{font-size:13.5px}.g-rows .v{font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bridgev{display:flex;gap:6px;flex-wrap:nowrap}.bridgev input{flex:1;min-width:0;width:auto;padding:4px 8px;font-size:12px}.bridgev .btn{padding:3px 9px;font-size:12px}
+.pv{display:flex;align-items:center;gap:8px}.pmeter{display:block;width:100%;max-width:120px}#pinchFill{display:block}
+.pv .bar{display:block;flex:1;min-width:40px}#palmProg{display:block}.pv .unit{width:auto;font-size:11px;white-space:nowrap}
+.g-read{grid-area:read;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0;border-top:0;align-self:end}
+.g-read div{padding:2px 0 0 10px;border-left:1px solid var(--line);border-bottom:0!important}.g-read div:first-child{padding-left:0;border-left:0}
+.g-read div:nth-child(even){padding-left:10px;border-left:1px solid var(--line)}
+.g-read dt{font-size:11.5px}.g-read dd{font-size:14px;white-space:nowrap}
+/* stage */
+.stage .mode{flex:1;min-height:0;display:flex;flex-direction:column}
+.stage .mhead{margin-bottom:12px}.stage .mhead h2{font-size:clamp(30px,2.6vw,44px)}.stage .mhead p{padding-right:4%;margin-top:4px;font-size:13.5px;max-width:80ch}
+.stage .pad{flex:1;height:auto;min-height:160px}.foot-cap{margin:8px 0 0}
+.stage .row{margin:0 0 10px}
+.canvasbox{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--line)}
+.canvasbox #drawCanvas{max-width:100%;max-height:100%;width:auto;height:auto;aspect-ratio:16/9;border:0;background:#121310}
+.hring{--p:0;position:relative;display:inline-flex;align-items:center;gap:8px;opacity:.35;transition:opacity .15s}
+.hring i{width:26px;height:26px;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*360deg),var(--line-2) 0);-webkit-mask:radial-gradient(circle,transparent 8px,#000 9px);mask:radial-gradient(circle,transparent 8px,#000 9px)}
+.hring em{font-style:normal;font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.hring.on{opacity:1}.hring.big{opacity:1}.hring.big i{width:44px;height:44px;-webkit-mask:radial-gradient(circle,transparent 15px,#000 16px);mask:radial-gradient(circle,transparent 15px,#000 16px)}
+.slidestage{flex:1;min-height:0;display:grid;grid-template-columns:56px minmax(0,1fr) 56px;gap:12px;align-items:stretch}
+.stage .slide{height:auto;min-height:0;font-size:clamp(30px,3.4vw,56px)}
+.harrow{--p:0;position:relative;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);font-family:var(--cond);font-weight:800;font-size:30px;cursor:pointer;overflow:hidden}
+.harrow::before{content:"";position:absolute;left:0;right:0;bottom:0;height:calc(var(--p)*100%);background:rgba(196,160,53,.28)}
+.harrow span{position:relative}.harrow.arming{color:var(--accent);border-color:var(--accent)}.harrow.fire{background:var(--accent);color:var(--bg)}
+.slidebar{display:flex;align-items:center;gap:12px;margin:12px 0 0}.slidebar #slideNo{font-size:14px;min-width:46px;text-align:center}
+.swipe{--p:0;margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:.14em;color:var(--ink-2)}
+.swipe::before{content:"PALM SWIPE " attr(data-dir)}
+.swipe i{display:block;width:140px;height:4px;background:linear-gradient(90deg,var(--accent) calc(var(--p)*100%),var(--line-2) 0)}
+.howto{margin:12px 0 0;padding:10px 0 0 18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-2);display:grid;gap:4px}
+.howto b{color:var(--ink);font-weight:500}
+.signgrid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:var(--g) 24px}
+.signlive{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:0}
+.signlive .bigletter{font-size:clamp(90px,10vw,150px);padding:0;line-height:.9}
+.sread{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}.sread dd{margin:0;font-size:16px}
+.signcard{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:0 16px;align-content:start;border-top:1px solid var(--line)}
+.signcard li{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+.signcard li b{font-family:var(--cond);font-weight:800;font-size:20px;color:var(--ink);width:18px;flex:none}
+.signcard li.on{color:var(--ink)}.signcard li.on b{color:var(--accent)}
+.stage .typed{flex:1;margin:12px 0 0;min-height:48px;font-size:26px}
 .vout{display:grid;grid-template-columns:90px 1fr;gap:8px 14px;margin:16px 0}.vout dd{margin:0;font-size:18px;color:var(--ink)}
 #voiceBtn.on{background:var(--alert);border-color:var(--alert);color:var(--ink)}
-#slideNo{font-size:14px}
-.camwrap .fpsbox{right:18px;top:14px}
-/* ===== v2.2 two-pane split: viewfinder 42 / stage 58, one baseline, one bezel ===== */
-.split{display:grid;grid-template-columns:42fr 58fr;height:calc(100vh - var(--top) - var(--bot));min-height:600px;overflow:hidden}
-.pane{min-width:0;min-height:0;display:flex;flex-direction:column}
-.vfpane{background:radial-gradient(ellipse at 40% 30%,#1a1b17 0,#0C0D0B 75%);padding:18px 22px 16px 14px;border-right:1px solid #050504;box-shadow:inset -1px 0 0 var(--line)}
-.vfpane .camwrap{width:100%;flex:none;aspect-ratio:16/9;max-height:60%}
-.vfpane .legend{left:22px;top:18%;font-size:13px}.vfpane .legend div{height:24px}
-.vfpane .legend div em{display:none}
-.vfpane .gest{position:absolute;left:22px;bottom:14px;margin:0}
-.vfpane #gestureBadge{font-size:clamp(28px,3vw,46px)}
-.vfpane .camwrap .fpsbox{right:16px;top:12px}
-.vfpane #hudFps{font-size:clamp(30px,2.6vw,46px)}
-.caminfo{position:static;margin:7px 0 0;font-size:12px}
-.ctlstrip{display:grid;grid-template-columns:1fr 26px minmax(150px,44%);gap:16px;align-items:center;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
-.armword{font-size:clamp(48px,4.6vw,78px);margin:2px 0}
-.ctlstrip .kill{margin:0;height:68px;align-items:center}
-.ctlstrip .kill span{font-size:30px}
-.qrows{margin:12px 0 0}
-.qrows li{grid-template-columns:70px minmax(0,1fr) 54px minmax(0,1fr);gap:8px;padding:6px 0 5px}
-.q{font-size:14.5px}.q2{color:var(--ink-2)}
-.bridgev,.pinchrow .v{grid-column:2/5}
-.pinchrow .v{grid-column:2/3}.pinchrow .unit{width:auto}
-.pmeter{width:min(130px,100%)}
-/* stage */
-.stage{display:flex;flex-direction:column;padding:14px 30px 16px 30px;gap:0;grid-template-columns:none;background:var(--bg)}
-.stage .readouts{display:flex;margin:0 0 12px;border-top:0;border-bottom:1px solid var(--line)}
-.stage .readouts div{flex:1;padding:4px 14px 6px;border-bottom:0;border-left:1px solid var(--line)}
-.stage .readouts div:first-child{padding-left:0;border-left:0}.stage .readouts div:nth-child(even){padding-left:14px}
-.stage .readouts dd{font-size:16px}
-.stage .mode{flex:1;min-height:0;display:flex;flex-direction:column}
-.stage .mhead{margin-bottom:10px}.stage .mhead h2{font-size:clamp(30px,2.8vw,44px)}.stage .mhead p{padding-right:6%;margin-top:4px;font-size:13.5px}
-.stage .pad{flex:1;height:auto;min-height:220px}
-.stage #drawCanvas{flex:1;min-height:0;width:100%;height:100%;object-fit:contain}
-.stage .slide{flex:1;height:auto;min-height:200px}
-.stage .row{margin:8px 0}.stage>.mode>.cap{margin:8px 0 0}
-.stage .note{margin-top:10px}
-/* drawer with filter + log column */
-.drawer{display:flex}#mode-train{flex:1}
-.drawer .tune{width:320px;flex:none;padding:18px 22px;border-left:1px solid var(--line-2)}
-.drawer #log{max-height:120px}
-@media(max-width:1000px){.split{grid-template-columns:1fr;height:auto;overflow:visible}.vfpane{border-right:0}.stage .pad,.stage .slide{min-height:320px}.drawer .tune{display:none}}
-.armword::after{left:0}.stage .readouts{margin-left:0}
-.vfpane .camwrap{aspect-ratio:auto;flex:1 1 auto;max-height:none;min-height:240px}.ctlstrip{margin-top:12px}
+.drawer{display:flex}#mode-train{flex:1}.drawer .tune{width:320px;flex:none;padding:18px 22px;border-left:1px solid var(--line-2)}.drawer #log{max-height:120px}
+/* STACK layout */
+body.stack #app{grid-template-rows:minmax(0,1fr) auto;grid-template-areas:"cam stage" "det det"}
+body.stack #app>.details{border-right:0;padding:12px var(--pad);grid-template-columns:minmax(0,1.1fr) minmax(0,1.25fr) minmax(0,2.2fr) minmax(0,1.3fr);grid-template-rows:auto;grid-template-areas:"ges arm rows read";align-items:center}
+body.stack .g-ges{flex-direction:column;gap:6px}body.stack .details .fpsbox{flex-direction:row;align-items:flex-end;gap:10px}
+body.stack .g-read{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:6px;align-self:center}
+body.stack .g-read div:nth-child(4){padding-left:0;border-left:0}
+body.stack .g-rows{border-top:0}
+body.stack .g-rows li{min-height:28px;padding:3px 0}
+@media(max-width:1000px){#app,body.stack #app{grid-template-columns:1fr;grid-template-rows:auto;grid-template-areas:"cam" "det" "stage";height:auto;overflow:visible}
+ #app>.cam{height:56vw}body.stack #app>.details{grid-template-columns:1fr 1fr;grid-template-areas:"ges arm" "rows rows" "read read"}#app>.stage{min-height:520px}.drawer .tune{display:none}}
+
+.g-arm{grid-template-columns:minmax(0,1fr) 26px 92px}.arm{overflow:hidden}
+.g-ges .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.g-ges>div:first-child{min-width:0}
+.cam .caminfo{left:34px;bottom:9px}
+.g-rows{align-self:start}
+.canvasbox #drawCanvas{width:100%;height:100%;max-width:none;max-height:none;aspect-ratio:auto;object-fit:contain;background:transparent}
+.canvasbox{background:#121310}
+#app>.details{align-content:space-between}
+@media(min-height:900px){#app{grid-template-rows:minmax(0,1.6fr) minmax(0,1fr)}body.stack #app{grid-template-rows:minmax(0,1fr) auto}
+ .details #gestureBadge{font-size:52px}.g-rows li{min-height:38px}.g-rows .q{font-size:15px}.g-rows .v{font-size:13.5px}.g-read dd{font-size:17px}.armword{font-size:64px}.g-arm .kill{height:76px}.lever{height:76px}}
