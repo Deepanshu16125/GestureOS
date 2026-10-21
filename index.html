@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GestureOS · On-Device Hand Gesture Control</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#3A2F26"><link rel="icon" href="icons/icon.svg">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#3B4029"><link rel="icon" href="icons/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css"></head><body>
@@ -37,7 +37,7 @@
  <div class="mode" id="mode-cursor"><span class="label">Mode 01</span><h2>Air Mouse</h2><p class="muted">Move your index finger to steer. Pinch thumb and index to click.</p>
   <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p class="small">Clicks: <b id="clickCount">0</b></p></div>
  <div class="mode hidden" id="mode-draw"><span class="label">Mode 02</span><h2>Air Draw</h2><p class="muted">Point to draw, open palm to lift the pen, hold a fist for 1 s to clear.</p>
-  <div class="row"><label>Colour <input type="color" id="penColor" value="#9C4A2A"></label><label>Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn">Clear</button><button id="saveDraw" class="btn">Save PNG</button></div>
+  <div class="row"><label>Colour <input type="color" id="penColor" value="#B06F2C"></label><label>Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn">Clear</button><button id="saveDraw" class="btn">Save PNG</button></div>
   <canvas id="drawCanvas" width="800" height="450"></canvas></div>
  <div class="mode hidden" id="mode-slides"><span class="label">Mode 03</span><h2>Slides &amp; Media</h2><p class="muted">Swipe left or right with an open palm. Thumbs up plays, fist pauses, peace toggles mute.</p>
   <div id="slide" class="slide"></div><div class="row"><span id="mediaState">⏸ Paused</span><span id="muteState">🔊</span><div class="bar"><div id="mediaProg"></div></div></div></div>

@@ -31,12 +31,12 @@ $('startBtn').onclick=async()=>{
 let frames=0,fpsT=performance.now(),fpsHist=[];
 function perf(lat){frames++;const n=performance.now();$('lat').textContent=lat.toFixed(1)+' ms';
   if(n-fpsT>=500){const f=frames*1000/(n-fpsT);frames=0;fpsT=n;$('fps').textContent=f.toFixed(0);fpsHist.push(f);if(fpsHist.length>52)fpsHist.shift();drawChart();}}
-function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#9C4A2A';x.lineWidth=2;x.beginPath();
+function drawChart(){const c=$('fpsChart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.strokeStyle='#B06F2C';x.lineWidth=2;x.beginPath();
   fpsHist.forEach((f,i)=>{const px=i*5,py=c.height-Math.min(f,60)/60*c.height;i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
 const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#E8C9A8';octx.lineWidth=3;
+function drawHand(lm){const W=ov.width,H=ov.height;octx.strokeStyle='#E6DAA9';octx.lineWidth=3;
   for(const [a,b] of CONN){octx.beginPath();octx.moveTo(lm[a].x*W,lm[a].y*H);octx.lineTo(lm[b].x*W,lm[b].y*H);octx.stroke();}
-  for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,4.5,0,7);octx.fillStyle='#9C4A2A';octx.fill();octx.lineWidth=1.5;octx.strokeStyle='#3A2F26';octx.stroke();}}
+  for(const p of lm){octx.beginPath();octx.arc(p.x*W,p.y*H,4.5,0,7);octx.fillStyle='#B06F2C';octx.fill();octx.lineWidth=1.5;octx.strokeStyle='#3B4029';octx.stroke();}}
 let prevG='none';
 function loop(){
   if(!running)return;
@@ -82,7 +82,7 @@ function airDraw(g,lm){if(!lm){last=null;return;}
 $('clearDraw').onclick=()=>dctx.clearRect(0,0,dc.width,dc.height);
 $('saveDraw').onclick=()=>{const a=document.createElement('a');a.download='airdraw.png';a.href=dc.toDataURL();a.click();};
 // ---------- Slides / Media
-const SLIDES=[['GestureOS','#3A2F26','#EDE3D1'],['On-device ML, privacy first','#F8F3EA','#221B15'],['21 landmarks · 30+ FPS','#E2D5BE','#221B15'],['Custom gestures via k-NN','#9C4A2A','#F8F3EA'],['Thank you','#E6DAC6','#9C4A2A']];
+const SLIDES=[['GestureOS','#3B4029','#ECE8D7'],['On-device ML, privacy first','#F6F2E7','#2B2A1C'],['21 landmarks · 30+ FPS','#DEDBC3','#2B2A1C'],['Custom gestures via k-NN','#B06F2C','#F6F2E7'],['Thank you','#DCDFC6','#B06F2C']];
 let si=0,playing=false,muted=false,prog=0,hist=[],cool=0;
 function showSlide(){$('slide').textContent=SLIDES[si][0];$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
 function slides(g,lm){const now=performance.now();

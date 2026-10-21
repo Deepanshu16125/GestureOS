@@ -59,7 +59,7 @@ Then open the **OS Control** tab → **Connect** → tick **Enable OS control**.
 | 🎓 Trainer | record custom gestures and classify them live | 73-D features + distance-weighted **k-NN**, `localStorage`, JSON import/export |
 | 📊 HUD & dashboard | mode, gesture, FPS, backend, OS chip, legend, pinch meter, latency, bridge ping | `performance.now()` |
 | 📦 PWA | installable, works offline | manifest + service worker (Cache API) |
-| 🎨 UI | warm editorial theme matching the author's portfolio (Instrument Serif/Sans, rust on beige) | plain CSS, no framework |
+| 🎨 UI | warm olive editorial theme (Instrument Serif/Sans, ochre on cream), colours as CSS tokens in `css/style.css` | plain CSS, no framework |
 
 ## 🤚 Gesture map
 
