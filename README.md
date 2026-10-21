@@ -20,6 +20,8 @@
 > 📌 **TODO:** record a 15–20 s GIF (point → pinch-click a real desktop window → swipe a slide) and save it as `docs/demo.gif`.
 > Add 4 stills: Air Mouse, Air Draw, Slides, Trainer (`docs/shot-*.png`).
 
+![GestureOS interface](docs/screenshot.png)
+
 <!-- ![GestureOS demo](docs/demo.gif) -->
 
 ## 🚀 Quick start
@@ -57,6 +59,7 @@ Then open the **OS Control** tab → **Connect** → tick **Enable OS control**.
 | 🎓 Trainer | record custom gestures and classify them live | 73-D features + distance-weighted **k-NN**, `localStorage`, JSON import/export |
 | 📊 HUD & dashboard | mode, gesture, FPS, backend, OS chip, legend, pinch meter, latency, bridge ping | `performance.now()` |
 | 📦 PWA | installable, works offline | manifest + service worker (Cache API) |
+| 🎨 UI | warm editorial theme matching the author's portfolio (Instrument Serif/Sans, rust on beige) | plain CSS, no framework |
 
 ## 🤚 Gesture map
 
