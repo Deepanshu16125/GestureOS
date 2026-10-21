@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 if __package__ in (None, ""):  # allow `python bridge/server.py`
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,12 +41,16 @@ def error(code, message, ref=None):
 class Controller:
     """Shared state for all connections: backend, kill switch, rate limit."""
 
-    def __init__(self, backend, smoothing=0.0, rate=120, burst=60, clock=None):
+    def __init__(self, backend, smoothing=0.0, rate=120, burst=60, clock=None,
+                 start_active=False, watchdog=1.5):
         self.backend = backend
         self.smoother = Smoother(smoothing)
-        kw = {"clock": clock} if clock else {}
-        self.limiter = RateLimiter(rate, burst, **kw)
-        self.killed = False
+        self.clock = clock or time.monotonic
+        self.limiter = RateLimiter(rate, burst, clock=self.clock)
+        self.killed = not start_active  # start paused; client must send resume
+        self.watchdog = watchdog  # seconds of silence before auto-pause; 0 disables
+        self.last_seen = self.clock()
+        self.armed = False  # True once input was applied since the last pause
 
     @property
     def dry_run(self):
@@ -53,6 +58,7 @@ class Controller:
 
     def kill(self):
         self.killed = True
+        self.armed = False
         self.smoother.reset()
         try:
             self.backend.release_all()
@@ -66,6 +72,7 @@ class Controller:
         except (ValueError, TypeError):
             return error("bad_json", "frame is not valid JSON")
         ref = msg.get("id") if isinstance(msg, dict) else None
+        self.last_seen = self.clock()
         try:
             m = validate(msg)
         except ProtocolError as e:
@@ -79,15 +86,16 @@ class Controller:
             session["ready"] = True
             w, h = self.backend.screen_size()
             return {"type": "ack", "version": PROTOCOL_VERSION, "screen": {"w": w, "h": h},
-                    "dryRun": self.dry_run, "killed": self.killed}
+                    "dryRun": self.dry_run, "killed": self.killed,
+                    "backend": self.backend.name, "watchdog": self.watchdog}
         if t == "kill":
             self.kill()
             log.warning("Kill switch ON")
-            return {"type": "state", "killed": True}
+            return {"type": "state", "killed": True, "reason": "kill"}
         if t == "resume":
             self.killed = False
             log.info("Kill switch OFF")
-            return {"type": "state", "killed": False}
+            return {"type": "state", "killed": False, "reason": "resume"}
         if t == "bye":
             return None
 
@@ -99,6 +107,7 @@ class Controller:
             return error("rate_limited", "too many messages", ref)
 
         try:
+            self.armed = True
             self._apply(m)
         except Exception as e:
             if type(e).__name__ == "FailSafeException":
@@ -107,6 +116,15 @@ class Controller:
             log.exception("backend error")
             return error("backend_error", str(e), ref)
         return None  # input commands are fire-and-forget
+
+    def check_watchdog(self) -> bool:
+        """Pause if input was active and nothing arrived for `watchdog` seconds."""
+        if (self.watchdog and self.armed and not self.killed
+                and self.clock() - self.last_seen > self.watchdog):
+            self.kill()
+            log.warning("Watchdog: no messages for %.1fs; paused", self.watchdog)
+            return True
+        return False
 
     def _apply(self, m):
         b, t = self.backend, m["type"]
@@ -131,6 +149,7 @@ class Controller:
 async def serve(controller, host="127.0.0.1", port=8765, origins=None):
     """Start the server; returns the websockets Server object."""
     allowed = set(DEFAULT_ORIGINS if origins is None else origins)
+    clients = set()
 
     async def handler(ws):
         origin = ws.request.headers.get("Origin")
@@ -138,6 +157,7 @@ async def serve(controller, host="127.0.0.1", port=8765, origins=None):
             await ws.close(code=1008, reason="origin not allowed")
             return
         session = {"ready": False}
+        clients.add(ws)
         log.info("client connected (%s)", origin or "no origin")
         try:
             async for raw in ws:
@@ -147,6 +167,7 @@ async def serve(controller, host="127.0.0.1", port=8765, origins=None):
         except websockets.ConnectionClosed:
             pass
         finally:
+            clients.discard(ws)
             # Never leave a mouse button stuck down after a disconnect.
             try:
                 controller.backend.release_all()
@@ -154,7 +175,23 @@ async def serve(controller, host="127.0.0.1", port=8765, origins=None):
                 pass
             log.info("client disconnected")
 
-    return await websockets.serve(handler, host, port, max_size=4096)
+    async def watchdog_loop():
+        while True:
+            await asyncio.sleep(0.1)
+            if controller.check_watchdog():
+                websockets.broadcast(clients, json.dumps(
+                    {"type": "state", "killed": True, "reason": "watchdog"}))
+
+    server = await websockets.serve(handler, host, port, max_size=4096)
+    task = asyncio.get_running_loop().create_task(watchdog_loop())
+    orig_close = server.close
+
+    def close(*a, **k):
+        task.cancel()
+        return orig_close(*a, **k)
+
+    server.close = close
+    return server
 
 
 def parse_args(argv=None):
@@ -162,6 +199,11 @@ def parse_args(argv=None):
     p.add_argument("--host", default="127.0.0.1", help="bind address (default 127.0.0.1, local only)")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--dry-run", action="store_true", help="log input instead of moving the real mouse")
+    p.add_argument("--backend", choices=["auto", "pynput", "pyautogui", "dryrun"], default="auto",
+                   help="input backend (auto = pynput, then pyautogui)")
+    p.add_argument("--start-active", action="store_true", help="accept input without a resume (testing)")
+    p.add_argument("--watchdog", type=float, default=1.5,
+                   help="pause after this many seconds of silence while active (0 = off)")
     p.add_argument("--smoothing", type=float, default=0.0, help="cursor EMA weight 0-0.95 (0 = off)")
     p.add_argument("--rate", type=float, default=120, help="max messages per second (default 120)")
     p.add_argument("--allow-origin", action="append", default=None,
@@ -176,14 +218,16 @@ def main(argv=None):
                         format="%(asctime)s %(levelname)s %(message)s")
     if a.host not in ("127.0.0.1", "localhost", "::1"):
         log.warning("Binding to %s exposes mouse/keyboard control to the network", a.host)
-    backend = make_backend(a.dry_run)
-    ctl = Controller(backend, smoothing=a.smoothing, rate=a.rate, burst=max(1, int(a.rate // 2)))
+    backend = make_backend(a.backend, a.dry_run)
+    ctl = Controller(backend, smoothing=a.smoothing, rate=a.rate, burst=max(1, int(a.rate // 2)),
+                     start_active=a.start_active, watchdog=a.watchdog)
     origins = DEFAULT_ORIGINS | set(a.allow_origin or [])
 
     async def run():
         server = await serve(ctl, a.host, a.port, origins)
-        log.info("GestureOS bridge on ws://%s:%d  backend=%s  smoothing=%.2f",
-                 a.host, a.port, backend.name, ctl.smoother.alpha)
+        log.info("GestureOS bridge on ws://%s:%d  backend=%s  smoothing=%.2f  %s",
+                 a.host, a.port, backend.name, ctl.smoother.alpha,
+                 "active" if not ctl.killed else "paused (send resume)")
         await server.wait_closed()
 
     try:

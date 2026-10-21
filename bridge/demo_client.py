@@ -12,6 +12,8 @@ async def main(url="ws://127.0.0.1:8765"):
     async with websockets.connect(url) as ws:
         await ws.send(json.dumps({"type": "hello", "app": "demo", "version": 1}))
         print("<-", await ws.recv())
+        await ws.send(json.dumps({"type": "resume"}))  # server starts paused
+        print("<-", await ws.recv())
         for x, y in [(0.3, 0.3), (0.7, 0.3), (0.7, 0.7), (0.3, 0.7), (0.5, 0.5)]:
             await ws.send(json.dumps({"type": "move", "x": x, "y": y}))
             await asyncio.sleep(0.3)

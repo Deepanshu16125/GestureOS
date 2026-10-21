@@ -20,13 +20,13 @@
 <button data-m='{"type":"resume"}'>resume</button>
 <pre id="log"></pre>
 <script>
-let ws;const $=id=>document.getElementById(id);
+let ws,ka;const $=id=>document.getElementById(id);
 const log=t=>{$('log').textContent=t+'\n'+$('log').textContent;};
-const send=m=>{if(ws&&ws.readyState===1){ws.send(JSON.stringify(m));if(m.type!=='move')log('-> '+JSON.stringify(m));}};
+const send=m=>{if(ws&&ws.readyState===1){ws.send(JSON.stringify(m));if(m.type!=='move'&&m.type!=='ping')log('-> '+JSON.stringify(m));}};
 $('connect').onclick=()=>{ws=new WebSocket($('url').value);
-  ws.onopen=()=>{$('status').textContent='connected';send({type:'hello',app:'test_client',version:1});};
-  ws.onmessage=e=>log('<- '+e.data);
-  ws.onclose=e=>{$('status').textContent='closed '+e.code+' '+e.reason;};};
+  ws.onopen=()=>{$('status').textContent='connected';send({type:'hello',app:'test_client',version:1});ka=setInterval(()=>send({type:'ping'}),500);};
+  ws.onmessage=e=>{if(!e.data.includes('pong'))log('<- '+e.data);};
+  ws.onclose=e=>{clearInterval(ka);$('status').textContent='closed '+e.code+' '+e.reason;};};
 let last=0;
 $('pad').onmousemove=e=>{const now=performance.now();if(now-last<16)return;last=now;
   const r=$('pad').getBoundingClientRect();send({type:'move',x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height});};

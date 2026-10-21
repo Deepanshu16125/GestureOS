@@ -8,6 +8,7 @@ from bridge.server import Controller, serve
 
 
 def make(**kw):
+    kw.setdefault("start_active", True)
     return Controller(DryRunBackend((1000, 500)), **kw)
 
 
@@ -23,7 +24,7 @@ def test_requires_hello():
     assert send(ctl, s, {"type": "click"})["code"] == "not_ready"
     ack = send(ctl, s, HELLO)
     assert ack == {"type": "ack", "version": 1, "screen": {"w": 1000, "h": 500},
-                   "dryRun": True, "killed": False}
+                   "dryRun": True, "killed": False, "backend": "dry-run", "watchdog": 1.5}
     assert send(ctl, s, {"type": "click"}) is None
     assert ctl.backend.calls == [("click", "left", False)]
 
@@ -47,11 +48,11 @@ def test_kill_and_resume():
     ctl, s = make(), {}
     send(ctl, s, HELLO)
     send(ctl, s, {"type": "mouseDown"})
-    assert send(ctl, s, {"type": "kill"}) == {"type": "state", "killed": True}
+    assert send(ctl, s, {"type": "kill"}) == {"type": "state", "killed": True, "reason": "kill"}
     assert ("releaseAll",) in ctl.backend.calls  # held buttons released
     assert send(ctl, s, {"type": "click"})["code"] == "killed"
     assert send(ctl, s, {"type": "ping"}) == {"type": "pong"}  # ping still works
-    assert send(ctl, s, {"type": "resume"}) == {"type": "state", "killed": False}
+    assert send(ctl, s, {"type": "resume"}) == {"type": "state", "killed": False, "reason": "resume"}
     assert send(ctl, s, {"type": "click"}) is None
 
 
@@ -80,7 +81,7 @@ def test_failsafe_triggers_kill():
         def click(self, *a):
             raise FailSafeException()
 
-    ctl, s = Controller(Boom()), {}
+    ctl, s = Controller(Boom(), start_active=True), {}
     send(ctl, s, HELLO)
     assert send(ctl, s, {"type": "click"})["code"] == "failsafe"
     assert ctl.killed
@@ -88,14 +89,16 @@ def test_failsafe_triggers_kill():
 
 def test_end_to_end_websocket():
     async def run():
-        ctl = make()
+        ctl = make(start_active=False)
         server = await serve(ctl, "127.0.0.1", 0)
         port = server.sockets[0].getsockname()[1]
         try:
             async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
                 await ws.send(json.dumps(HELLO))
                 ack = json.loads(await ws.recv())
-                assert ack["type"] == "ack" and ack["dryRun"] is True
+                assert ack["type"] == "ack" and ack["dryRun"] is True and ack["killed"] is True
+                await ws.send(json.dumps({"type": "resume"}))
+                assert json.loads(await ws.recv())["killed"] is False
                 await ws.send(json.dumps({"type": "move", "x": 0.5, "y": 0.5}))
                 await ws.send(json.dumps({"type": "click", "button": "right", "double": True}))
                 await ws.send(json.dumps({"type": "hotkey", "keys": ["alt", "tab"]}))
@@ -115,5 +118,60 @@ def test_end_to_end_websocket():
             server.close()
             await server.wait_closed()
         assert ctl.backend.calls[:3] == [("move", 500, 250), ("click", "right", True), ("hotkey", ("alt", "tab"))]
+
+    asyncio.run(run())
+
+
+def test_starts_paused_until_resume():
+    ctl, s = Controller(DryRunBackend()), {}
+    assert send(ctl, s, HELLO)["killed"] is True
+    assert send(ctl, s, {"type": "click"})["code"] == "killed"
+    assert ctl.backend.calls == []
+    send(ctl, s, {"type": "resume"})
+    assert send(ctl, s, {"type": "click"}) is None
+
+
+def test_watchdog_pauses_and_releases_with_fake_clock():
+    t = [0.0]
+    ctl, s = make(clock=lambda: t[0], watchdog=1.5), {}
+    send(ctl, s, HELLO)
+    assert not ctl.check_watchdog()  # nothing active yet: idle clients are fine
+    t[0] = 10
+    assert not ctl.check_watchdog()
+    send(ctl, s, {"type": "mouseDown"})
+    t[0] = 11.0
+    send(ctl, s, {"type": "ping"})  # keepalive resets the timer
+    t[0] = 12.4
+    assert not ctl.check_watchdog()
+    t[0] = 12.6
+    assert ctl.check_watchdog()
+    assert ctl.killed and ctl.backend.calls[-1] == ("releaseAll",)
+    assert not ctl.check_watchdog()  # fires once
+    send(ctl, s, {"type": "resume"})
+    t[0] = 100
+    assert not ctl.check_watchdog()  # not re-armed until input arrives
+
+
+def test_watchdog_disabled():
+    t = [0.0]
+    ctl, s = make(clock=lambda: t[0], watchdog=0), {}
+    send(ctl, s, HELLO); send(ctl, s, {"type": "click"})
+    t[0] = 99
+    assert not ctl.check_watchdog()
+
+
+def test_watchdog_broadcasts_over_websocket():
+    async def run():
+        ctl = make(watchdog=0.2)
+        server = await serve(ctl, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        try:
+            async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
+                await ws.send(json.dumps(HELLO)); await ws.recv()
+                await ws.send(json.dumps({"type": "mouseDown"}))
+                m = json.loads(await asyncio.wait_for(ws.recv(), 2))
+                assert m == {"type": "state", "killed": True, "reason": "watchdog"}
+        finally:
+            server.close(); await server.wait_closed()
 
     asyncio.run(run())
