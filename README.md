@@ -161,4 +161,4 @@ MediaPipe GestureRecognizer running in parallel, Model Maker custom `.task` mode
 License: _to be chosen (add a `LICENSE` file)_. Bridge dependencies: [`bridge/requirements.txt`](bridge/requirements.txt).
 Project report material: [`docs/synopsis-outline.md`](docs/synopsis-outline.md) · Demo script: [`docs/viva-script.md`](docs/viva-script.md)
 
-<div align="center"><sub>B.Tech CSE final-year project · Deepanshu · 2026</sub></div>
+<div align="center"><sub>Deepanshu · 2026</sub></div>
