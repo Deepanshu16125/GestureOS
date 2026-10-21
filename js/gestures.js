@@ -68,23 +68,43 @@ export function classify(lm,pinchClosed=null,prev=null){
   if(ext(i)&&ext(p)&&notExt(m)&&notExt(r)) return {name:'rock',conf:.75};
   return {name:'unknown',conf:.3};
 }
-/** ASL letter templates [thumb,index,middle,ring,pinky]: 1 extended, 0 curled. O is checked separately. */
+/** ASL letter templates [thumb,index,middle,ring,pinky]: 1 extended, 0 curled. O is scored separately. */
 export const LETTERS={A:[0,0,0,0,0],B:[0,1,1,1,1],D:[0,1,0,0,0],I:[0,0,0,0,1],L:[1,1,0,0,0],V:[0,1,1,0,0],W:[0,1,1,1,0],Y:[1,0,0,0,1],' ':[1,1,1,1,1]};
-/** Sign reading: {letter (accepted or null), closest, conf 0..1}. */
-export function signInfo(lm){
-  const hs=handSize(lm),th=thumbState(lm),f=[1,2,3,4].map(k=>fingerState(lm,k));
-  const v=[th.ext?1:0,...f.map(s=>s==='ext'?1:s==='mid'?0.5:0)];
-  // O: thumb and index tips touch, other fingers rounded (not extended)
-  if(pinchRatio(lm)<0.3&&f.slice(1).every(s=>s!=='ext')&&f[0]!=='ext')return {letter:'O',closest:'O',conf:.85};
-  let best=null,bd=9;for(const [L,t] of Object.entries(LETTERS)){const dist=t.reduce((s,x,j)=>s+Math.abs(x-v[j]),0);if(dist<bd){bd=dist;best=L;}}
-  let conf=Math.max(0,1-bd/2.5);
-  let ok=bd===0;
-  if(best==='V'&&d2(lm[8],lm[12])/hs<0.3)ok=false;          // V needs the two fingers apart
-  if(best==='B'&&d2(lm[8],lm[20])/hs>0.75)ok=false;         // B: fingers together
-  if(best==='A'&&th.span>0.9)ok=false;                       // A: thumb rests beside the fist
-  if(!ok)conf=Math.min(conf,.6);
-  return {letter:ok?best:null,closest:best,conf};
-}
+const clamp01=x=>Math.max(0,Math.min(1,x));
+/** Per-finger curl angle (deg) for k=1..4: bend at PIP + bend at DIP. 0 = straight, ~150+ = curled.
+ *  Joint angles are relative to the finger itself, so it is rotation, scale and mirror invariant. */
+export function curlAngle(lm,k){return (180-angle(lm[MCPS[k]],lm[PIPS[k]],lm[DIPS[k]]))+(180-angle(lm[PIPS[k]],lm[DIPS[k]],lm[TIPS[k]]));}
+/** Continuous extension 0..1 per finger [thumb,index,middle,ring,pinky]. */
+export function extension(lm){const hs=handSize(lm);
+  const span=d2(lm[4],lm[17])/hs, far=d2(lm[4],lm[5])/hs, st=angle(lm[2],lm[3],lm[4]);
+  const th=clamp01((span-0.8)/0.35)*clamp01((far-0.3)/0.3)*clamp01((st-110)/40);
+  return [th,...[1,2,3,4].map(k=>{const c=curlAngle(lm,k),reach=d2(lm[TIPS[k]],lm[MCPS[k]])/hs;
+    return Math.max(clamp01(1-(c-45)/100), clamp01((curlRatio(lm,k)-1.2)/0.5)*clamp01(1-(c-60)/120), clamp01((reach-0.3)/0.4)*0.6);})];}
+const TOL=0.22, W=[0.7,1,1,1,1];
+/** Score every letter 0..1 (tolerant per-finger match + shape checks), best first. */
+export function signScores(lm){const e=extension(lm),hs=handSize(lm),out=[];
+  for(const [L,t] of Object.entries(LETTERS)){let err=0,ws=0;t.forEach((x,j)=>{err+=W[j]*Math.max(0,Math.abs(x-e[j])-TOL)/(1-TOL);ws+=W[j];});
+    let sc=1-err/ws*1.6;
+    if(L==='V'&&d2(lm[8],lm[12])/hs<0.25)sc-=0.3;      // V: index and middle apart
+    if(L==='B'&&d2(lm[8],lm[20])/hs>0.8)sc-=0.25;       // B: fingers together
+    if(pinchRatio(lm)<0.25&&e[1]>0.25)sc-=0.35;                  // thumb tip on index tip = O
+    out.push({letter:L,score:clamp01(sc)});}
+  // O: thumb and index tips touch, other fingers rounded (neither straight nor fully fisted)
+  const pr=pinchRatio(lm);out.push({letter:'O',score:clamp01((e[1]-0.1)/0.2)*clamp01(1-Math.max(0,pr-0.2)/0.25)*clamp01(1.5-e[1])*clamp01(1.4-Math.max(e[2],e[3],e[4]))});
+  return out.sort((a,b)=>b.score-a.score);}
+export const SIGN_ACCEPT=0.5, SIGN_MARGIN=0.1;
+/** Sign reading: {letter (accepted or null), closest, conf, second, conf2}. */
+export function signInfo(lm){const s=signScores(lm),[a,b]=s;const ok=a.score>=SIGN_ACCEPT&&a.score-b.score>=SIGN_MARGIN;
+  return {letter:ok?a.letter:null,closest:a.letter,conf:a.score,second:b.letter,conf2:b.score};}
+/** Rotation/scale-normalised landmarks for per-user sign calibration (k-NN): rotate so wrist→middle MCP points up. */
+export function signFeatures(lm){const w=lm[0],hs=handSize(lm),ang=Math.atan2(lm[9].x-w.x,-(lm[9].y-w.y)),c=Math.cos(ang),sn=Math.sin(ang);
+  const mir=((lm[5].x-w.x)*c+(lm[5].y-w.y)*sn)>((lm[17].x-w.x)*c+(lm[17].y-w.y)*sn)?-1:1;const f=[];
+  for(const p of lm){const x=(p.x-w.x)/hs,y=(p.y-w.y)/hs;f.push(mir*(x*c+y*sn),-x*sn+y*c);}
+  return f.concat(extension(lm).map(v=>v*2));}
+/** Pen state for Air Draw, independent of hand orientation: index extended relative to its own MCP.
+ *  down: curl < 70° and tip farther from MCP than PIP. Hysteresis: stays down until curl > 100° or tip folds back. */
+export function indexPen(lm,wasDown=false){const c=curlAngle(lm,1),m=lm[5],far=d2(lm[8],m)>d2(lm[6],m)*(wasDown?1.05:1.3);
+  return wasDown?(c<100&&far):(c<70&&far);}
 export function signLetter(lm){return signInfo(lm).letter;}
 /** Majority-vote smoother over a sliding window + EMA point filter. */
 export class Smoother{

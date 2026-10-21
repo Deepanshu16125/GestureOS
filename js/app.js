@@ -1,11 +1,11 @@
-import {features,classify,signInfo,pinchRatio,Smoother,EMA,fingerDebug} from './gestures.js?v=8';
-import {KNN} from './knn.js?v=8';
-import {BridgeClient} from './bridge.js?v=8';
-import {OneEuro2D,PinchFSM,mapInner} from './filters.js?v=8';
+import {features,classify,signInfo,signFeatures,indexPen,pinchRatio,Smoother,EMA,fingerDebug} from './gestures.js?v=9';
+import {KNN} from './knn.js?v=9';
+import {BridgeClient} from './bridge.js?v=9';
+import {OneEuro2D,PinchFSM,mapInner} from './filters.js?v=9';
 const $=id=>document.getElementById(id);
 const video=$('video'),ov=$('overlay'),octx=ov.getContext('2d');
 let landmarker=null,mode='cursor',running=false,lastVideoTime=-1;
-const smoother=new Smoother(250),knn=new KNN();
+const smoother=new Smoother(250),knn=new KNN(),signKnn=new KNN('gestureos_sign_v1');
 // Shared cursor pipeline: inner-70% mapping -> One Euro filter -> pinch FSM (hysteresis + 200 ms lookback).
 const cursorF=new OneEuro2D(1.0,0.007),pinch=new PinchFSM();
 let curPos=null,pinchEv=[];
@@ -71,7 +71,7 @@ function processHands(hands){
       if(Object.keys(knn.classes()).length){const p=knn.predict(vec,+$('kVal').value||5);
         if(p){$('knnPred').textContent=p.label;$('knnConf').textContent='('+(p.conf*100).toFixed(0)+'%)';
           if($('useCustom').checked&&p.conf>.8&&p.dist<1.2){g=p.label;conf=p.conf;}}}
-      if(recording)record(vec);}
+      if(recording)record(vec);if(calib)calibRecord(lm);}
     if(!hands.length){pinchEv=pinch.update(null);cursorF.reset();curPos=null;}
     updatePinchMeter(pinch.ratio,pinch.closed);
     $('raw').textContent=g;$('fstate').textContent=lm?fingerDebug(lm):'—';const sm=smoother.push(g);$('conf').textContent=(conf*sm.ratio*100).toFixed(0)+'%';
@@ -105,10 +105,17 @@ function airButtons(lm){if(!lm||!curPos){pc.classList.add('hidden');document.que
 // ---------- Air Draw
 const dc=$('drawCanvas'),dctx=dc.getContext('2d');let last=null,fistT=0;const dEma=new EMA(.5);
 dctx.lineCap='round';
-let mid=null;const CLEAR_MS=1200;
-function airDraw(g,lm){const overBtn=airButtons(lm);if(!lm){last=null;mid=null;holdClear(false);return;}
-  const p=dEma.update((1-lm[8].x)*dc.width,lm[8].y*dc.height);
-  if((g==='pinch'||g==='point')&&!overBtn){
+let mid=null,penDown=false,penT=0;const CLEAR_MS=1200,PEN_GRACE=250;
+/** Pen: index extended relative to its own MCP (any hand orientation), with hysteresis.
+ *  Brief misclassifications keep the pen down for PEN_GRACE ms; only a clear fist / open palm / thumbs up or hand loss lifts it. */
+function penState(g,lm){const now=performance.now();
+  const raw=prevRaw; // raw (unsmoothed) label so a closing hand lifts the pen at once
+  if(raw==='fist'||raw==='open_palm'||raw==='thumbs_up'){penDown=false;return false;}
+  if(pinch.closed||indexPen(lm,penDown)){penDown=true;penT=now;return true;}
+  if(penDown&&now-penT<PEN_GRACE)return true;penDown=false;return false;}
+function airDraw(g,lm){const overBtn=airButtons(lm);if(!lm){last=null;mid=null;penDown=false;holdClear(false);return;}
+  const p=dEma.update((1-lm[8].x)*dc.width,lm[8].y*dc.height);const down=penState(g,lm);$('penState').textContent=down?'PEN DOWN':'pen up';
+  if(down&&!overBtn){
     if(last){dctx.strokeStyle=$('penColor').value;dctx.lineWidth=+$('penSize').value;dctx.lineJoin='round';
       // smooth: quadratic through midpoints, so slow cameras still give a continuous curve
       const m={x:(last.x+p.x)/2,y:(last.y+p.y)/2};dctx.beginPath();dctx.moveTo((mid||last).x,(mid||last).y);dctx.quadraticCurveTo(last.x,last.y,m.x,m.y);dctx.stroke();mid=m;}
@@ -141,9 +148,19 @@ function slides(g,lm){const now=performance.now();airButtons(lm);
   else{hist=[];$('swipeMeter').style.setProperty('--p',0);}}
 // ---------- Sign: hold a letter steady ~0.8 s to type it
 let sCand=null,sT=0;
-function sign(lm){const r=lm?signInfo(lm):{letter:null,closest:null,conf:0};const L=r.letter;
-  $('signLetter').textContent=L===' '?'␣':(L||'?');$('signClosest').textContent=r.closest?(r.closest===' '?'space':r.closest):'—';$('signConf').textContent=lm?(r.conf*100).toFixed(0)+'%':'—';
-  document.querySelectorAll('#signCard li').forEach(li=>li.classList.toggle('on',li.dataset.l===(L||'')));
+const sVotes=[],SIGN_VOTE_MS=600;
+/** Per-user calibration (Train tab) wins when it is confident; otherwise the tolerant template scores. */
+function readSign(lm){const r=signInfo(lm);if(Object.keys(signKnn.classes()).length){const p=signKnn.predict(signFeatures(lm),5);
+    if(p&&p.conf>=0.6&&p.dist<2.5)return {letter:p.label,closest:p.label,conf:Math.max(p.conf,r.closest===p.label?r.conf:0),second:r.closest===p.label?r.second:r.closest,conf2:r.closest===p.label?r.conf2:r.conf,calib:true};}
+  return r;}
+function sign(lm){const now=performance.now();const r=lm?readSign(lm):{letter:null,closest:null,conf:0};
+  sVotes.push({l:r.letter,t:now});while(sVotes.length&&now-sVotes[0].t>SIGN_VOTE_MS)sVotes.shift();
+  const c={};for(const v of sVotes)c[v.l]=(c[v.l]||0)+1;let L=null,bc=0;for(const k in c)if(c[k]>bc){bc=c[k];L=k;}
+  if(L==='null'||bc/sVotes.length<0.55)L=null;
+  const nm=x=>x===' '?'space':x;
+  $('signLetter').textContent=L===' '?'␣':(L||'?');$('signClosest').textContent=r.closest?nm(r.closest):'—';$('signConf').textContent=lm?(r.conf*100).toFixed(0)+'%'+(r.calib?' · calibrated':''):'—';
+  $('signTop2').textContent=lm&&r.closest?`1. ${nm(r.closest)} ${(r.conf*100).toFixed(0)}%   2. ${nm(r.second)} ${(r.conf2*100).toFixed(0)}%`:'—';
+  document.querySelectorAll('#signCard li').forEach(li=>{const p=li.dataset.l===r.closest?r.conf:li.dataset.l===r.second?r.conf2:0;li.classList.toggle('on',li.dataset.l===(L||''));li.style.setProperty('--m',p.toFixed(2));li.dataset.pct=lm&&p?(p*100).toFixed(0)+'%':'';});
   if(L!==sCand){sCand=L;sT=performance.now();$('signHold').style.setProperty('--p',0);return;}
   if(L){const f=Math.min(1,(performance.now()-sT)/800);$('signHold').style.setProperty('--p',f);
     if(f>=1){const t=$('signText');if(!(L===' '&&t.textContent.endsWith(' ')))t.textContent+=L;sT=performance.now()+400;log('Typed "'+L+'"');}}}
@@ -152,6 +169,13 @@ $('signClear').onclick=()=>$('signText').textContent='';
 let recording=false,recName='',recN=0;
 function record(vec){knn.add(recName,vec);recN++;$('trainStatus').textContent=`Recording "${recName}": ${recN}/60`;
   if(recN>=60){recording=false;knn.save();renderClasses();$('trainStatus').textContent=`Saved 60 samples for "${recName}".`;log('Trained '+recName);}}
+let calib=null,calibN=0;const CALIB_N=40;
+function calibRecord(lm){signKnn.add(calib,signFeatures(lm));calibN++;$('calibStatus').textContent=`Calibrating "${calib===' '?'space':calib}": ${calibN}/${CALIB_N}`;
+  if(calibN>=CALIB_N){signKnn.save();log('Calibrated sign '+calib);calib=null;renderCalib();}}
+function renderCalib(){const c=signKnn.classes();$('calibStatus').textContent=Object.keys(c).length?'Calibrated: '+Object.entries(c).map(([l,n])=>`${l===' '?'space':l} (${n})`).join(', '):'No letters calibrated — built-in templates are used.';}
+$('calibBtn').onclick=()=>{if(!running)return alert('Start the camera first');const L=$('calibLetter').value;signKnn.removeClass(L);calibN=0;
+  $('calibStatus').textContent='Hold the letter… capturing in 1.5 s';setTimeout(()=>calib=L,1500);};
+$('calibReset').onclick=()=>{signKnn.reset();renderCalib();};renderCalib();
 $('recBtn').onclick=()=>{const n=$('gName').value.trim();if(!n)return alert('Enter a gesture name');if(!running)return alert('Start the camera first');
   recName=n;recN=0;$('trainStatus').textContent='Get ready… recording in 2s';setTimeout(()=>recording=true,2000);};
 function renderClasses(){const ul=$('classList');ul.innerHTML='';for(const [l,c] of Object.entries(knn.classes())){const li=document.createElement('li');const nb=document.createElement('b');nb.textContent=l;li.append(nb,` — ${c} samples `);
@@ -245,23 +269,51 @@ function osControl(g,lm){
   else{scrollY=null;scrollAcc=0;}
 }
 renderChip();
-// ---------- Voice (Web Speech API; Chrome/Edge)
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,listening=false;
-const VOICE=[[/\b(next|forward)\b/,()=>{goSlide(1);return 'next slide';}],[/\b(back|previous|prev)\b/,()=>{goSlide(-1);return 'previous slide';}],
- [/\bclear\b/,()=>{clearDraw();return 'clear canvas';}],[/\b(stop|pause|kill)\b/,()=>{pauseOS('voice');return 'pause OS control';}],
- [/\bdraw/,()=>{tab('draw');return 'Air Draw';}],[/\bmouse\b/,()=>{tab('cursor');return 'Air Mouse';}],[/\bslides?\b/,()=>{tab('slides');return 'Slides';}],
- [/\bsign\b/,()=>{tab('sign');return 'Sign';}],[/\btrain/,()=>{tab('train');return 'Train';}]];
-function voiceCommand(text){const t=text.toLowerCase();$('voiceText').textContent='“'+text+'”';
-  for(const [re,f] of VOICE)if(re.test(t)){const r=f();$('voiceCmd').textContent=r;log('Voice: '+r);return r;}$('voiceCmd').textContent='not a command';return null;}
-$('voiceBtn').onclick=()=>{if(!SR){$('voiceCmd').textContent='Speech recognition is not available in this browser (use Chrome or Edge).';return;}
-  if(listening){rec.stop();return;}
-  rec=new SR();rec.lang='en-IN';rec.continuous=true;rec.interimResults=false;
-  rec.onresult=e=>voiceCommand(e.results[e.results.length-1][0].transcript.trim());
-  rec.onerror=e=>{$('voiceCmd').textContent='mic error: '+e.error;};
-  rec.onend=()=>{listening=false;$('voiceBtn').textContent='● Start listening';$('voiceBtn').classList.remove('on');};
-  rec.start();listening=true;$('voiceBtn').textContent='■ Stop listening';$('voiceBtn').classList.add('on');log('Voice: listening');};
+// ---------- Voice (Web Speech API; works in Chrome and Edge only — it streams audio to the browser vendor's speech service)
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,wantListen=false,restarts=0;
+const UA=navigator.userAgent,BROWSER=/OPR\/|Opera/.test(UA)?'Opera':navigator.brave?'Brave':/Edg\//.test(UA)?'Edge':/Firefox\//.test(UA)?'Firefox':/Chrome\//.test(UA)?'Chrome':/Safari\//.test(UA)?'Safari':'this browser';
+const VOICE_OK=!!SR&&(BROWSER==='Chrome'||BROWSER==='Edge'||BROWSER==='Safari');
+const vStatus=(s,cls='')=>{const el=$('voiceStatus');el.textContent=s;el.dataset.s=cls;};
+const SYN={next:['next','forward','ahead','right','skip','nest','neck','text','necks'],back:['back','previous','prev','before','left','go back','backward','bag','black'],
+ clear:['clear','erase','wipe','reset','clean','delete','claire','clean up'],stop:['stop','pause','kill','halt','freeze','stopped','top','emergency'],
+ draw:['draw','drawing','paint','pen','air draw','drew','drawer','raw'],mouse:['mouse','cursor','pointer','air mouse','mice','mouth'],slides:['slides','slide','presentation','slideshow','deck','light'],
+ sign:['sign','signs','letters','sine','sight','spell'],train:['train','training','trainer','teach','rain']};
+const ACT={next:()=>{goSlide(1);return 'next slide';},back:()=>{goSlide(-1);return 'previous slide';},clear:()=>{clearDraw();return 'clear canvas';},stop:()=>{pauseOS('voice');return 'pause OS control';},
+ draw:()=>{tab('draw');return 'Air Draw';},mouse:()=>{tab('cursor');return 'Air Mouse';},slides:()=>{tab('slides');return 'Slides';},sign:()=>{tab('sign');return 'Sign';},train:()=>{tab('train');return 'Train';}};
+const lev=(a,b)=>{const m=[...Array(b.length+1).keys()];for(let i=1;i<=a.length;i++){let p=m[0];m[0]=i;for(let j=1;j<=b.length;j++){const t=m[j];m[j]=Math.min(m[j]+1,m[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t;}}return m[b.length];};
+/** Forgiving match: phrase synonyms, then whole words, then one-typo fuzzy match on words of 4+ letters. Stop wins ties (safety). */
+export function matchVoice(text){const t=' '+text.toLowerCase().replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim()+' ',words=t.trim().split(' ');
+  const order=['stop','next','back','clear','draw','mouse','slides','sign','train'];
+  for(const k of order)for(const s of SYN[k])if(t.includes(' '+s+' '))return k;
+  for(const k of order)for(const s of SYN[k])if(!s.includes(' ')&&s.length>=4&&words.some(w=>w.length>=4&&lev(w,s)<=1))return k;
+  return null;}
+function voiceCommand(text){$('voiceText').textContent='“'+text+'”';const k=matchVoice(text);
+  if(k){const r=ACT[k]();$('voiceCmd').textContent=r;vStatus(`heard: “${text}” → ${r}`,'ok');log('Voice: '+r);return r;}
+  $('voiceCmd').textContent='not a command';vStatus(`heard: “${text}” — not a command`,'warn');return null;}
+const ERR={'not-allowed':'microphone blocked — allow it in the address-bar mic icon (site settings) and press Start again','service-not-allowed':'speech service not allowed in this browser — use Chrome or Edge',
+ 'network':'network — the speech service could not be reached (needs internet; Opera/Brave have no speech service)','no-speech':'no speech heard — still listening','audio-capture':'no microphone found / mic in use by another app','aborted':'aborted'};
+function setBtn(on){$('voiceBtn').textContent=on?'■ Stop listening':'● Start listening';$('voiceBtn').classList.toggle('on',on);}
+async function startVoice(){
+  if(!SR){vStatus(`unsupported: ${BROWSER} has no Web Speech API. Open http://localhost:8000 in Chrome or Edge.`,'err');return;}
+  if(!VOICE_OK)vStatus(`warning: ${BROWSER} exposes the API but usually cannot reach a speech service. Use Chrome or Edge. Trying anyway…`,'warn');
+  if(!window.isSecureContext){vStatus('error: needs a secure context — open via http://localhost, not a LAN IP or file://','err');return;}
+  try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());}
+  catch(e){vStatus('error: microphone '+(e.name==='NotAllowedError'?'permission denied (not-allowed)':e.name==='NotFoundError'?'not found (audio-capture)':e.name),'err');return;}
+  wantListen=true;restarts=0;setBtn(true);launch();log('Voice: listening');}
+function launch(){rec=new SR();rec.lang=$('voiceLang').value||'en-IN';rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=3;
+  rec.onstart=()=>vStatus('listening… say “next”, “back”, “draw”…','on');
+  rec.onresult=e=>{const r=e.results[e.results.length-1];const tx=r[0].transcript.trim();
+    if(!r.isFinal){vStatus(`hearing: “${tx}”…`,'on');return;}
+    restarts=0;for(let i=0;i<r.length;i++)if(matchVoice(r[i].transcript)){voiceCommand(r[i].transcript.trim());return;}voiceCommand(tx);};
+  rec.onerror=e=>{const m=ERR[e.error]||e.error;if(e.error==='no-speech'){vStatus('no-speech: '+m,'warn');return;}
+    vStatus('error: '+e.error+' — '+m,'err');log('Voice error: '+e.error);if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'){wantListen=false;setBtn(false);}};
+  rec.onend=()=>{if(wantListen&&restarts<20){restarts++;setTimeout(()=>{if(wantListen)try{launch();}catch(err){vStatus('error: restart failed — '+err.message,'err');}},restarts>3?1500:250);}
+    else{if(wantListen)vStatus('stopped after repeated failures — press Start listening again','err');wantListen=false;setBtn(false);}};
+  try{rec.start();}catch(err){vStatus('error: '+err.message,'err');}}
+$('voiceBtn').onclick=()=>{if(wantListen){wantListen=false;try{rec&&rec.stop();}catch{}setBtn(false);vStatus('idle','');return;}startVoice();};
+vStatus(!SR?`unsupported in ${BROWSER} — open in Chrome or Edge`:VOICE_OK?`ready (${BROWSER}) — press Start listening`:`${BROWSER} detected — voice usually fails here; use Chrome or Edge`,!SR||!VOICE_OK?'warn':'');
 // ---------- Test hook: replay synthetic landmarks without a camera
-window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},get typed(){return $('signText').textContent;},
+window.GestureOS={get armed(){return controlling();},get lever(){return osToggle.checked;},feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,matchVoice,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},get typed(){return $('signText').textContent;},calibrateSign:(L,lms)=>{for(const lm of lms)signKnn.add(L,signFeatures(lm));signKnn.save();renderCalib();},
   drawnPixels:()=>{const d=dctx.getImageData(0,0,dc.width,dc.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;}};
 // ---------- PWA
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(()=>log('Offline cache ready (service worker)')).catch(e=>console.warn('SW',e));

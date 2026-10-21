@@ -3,7 +3,7 @@
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0C0D0B"><link rel="icon" href="icons/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=8"></head><body>
+<link rel="stylesheet" href="css/style.css?v=9"></head><body>
 <svg class="grain" aria-hidden="true"><filter id="grainF"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grainF)"/></svg>
 
 <header class="bezel-top">
@@ -54,7 +54,7 @@
  <div class="mode" id="mode-cursor"><div class="mhead"><span class="idx">01</span><h2>Air Mouse</h2><p>Your index fingertip moves the amber ring anywhere on the page. A quick thumb–index pinch clicks what is under it. Try the boxes.</p></div>
   <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p class="cap foot-cap">Clicks <b id="clickCount" class="mono">0</b></p></div>
  <div class="mode hidden" id="mode-draw"><div class="mhead"><span class="idx">02</span><h2>Air Draw</h2><p>Pinch (or point) and move to draw. Open your palm to lift the pen. Closing your hand just lifts the pen. To clear: hold a <b>thumbs up</b> for 1.2 s (ring fills), or point at <b>CLEAR</b> and pinch.</p></div>
-  <div class="row"><label class="cap">Colour <input type="color" id="penColor" value="#C4A035"></label><label class="cap">Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn airbtn bigbtn" data-name="clear">Clear</button><button id="saveDraw" class="btn">Save PNG</button><span id="drawHold" class="hring" title="thumbs up: clearing"><i></i><em>clear</em></span></div>
+  <div class="row"><label class="cap">Colour <input type="color" id="penColor" value="#C4A035"></label><label class="cap">Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw" class="btn airbtn bigbtn" data-name="clear">Clear</button><button id="saveDraw" class="btn">Save PNG</button><span id="penState" class="pen mono">pen up</span><span id="drawHold" class="hring" title="thumbs up: clearing"><i></i><em>clear</em></span></div>
   <div class="canvasbox"><canvas id="drawCanvas" width="960" height="540"></canvas></div></div>
  <div class="mode hidden" id="mode-slides"><div class="mhead"><span class="idx">03</span><h2>Slides</h2><p>Move the amber ring onto <b>PREV</b> or <b>NEXT</b> and pinch to press. Or point-and-hold at a camera edge, or swipe an open palm.</p></div>
   <div class="slidestage"><button id="arrowPrev" class="harrow airbtn" data-name="prev" aria-label="previous"><span>←</span><small>PREV</small></button><div id="slide" class="slide"></div><button id="arrowNext" class="harrow airbtn" data-name="next" aria-label="next"><span>→</span><small>NEXT</small></button></div>
@@ -63,7 +63,7 @@
   <ol class="howto"><li><b>Pinch-press</b> the big PREV / NEXT buttons with the air cursor.</li><li><b>Point &amp; hold</b> your index finger at the right edge of the camera frame for 0.6 s → next. Left edge → back.</li><li><b>Palm swipe</b>: open hand, sweep it sideways quickly (in about a third of a second) → next or back. The bar shows how fast the swipe is.</li><li>After a change there is a short pause (0.9 s) so one move is not counted twice.</li></ol></div>
  <div class="mode hidden" id="mode-sign"><div class="mhead"><span class="idx">04</span><h2>Sign Letters</h2><p>Hold one handshape still for 0.8 s to type it. Nine letters are supported.</p></div>
   <div class="signgrid"><div class="signlive"><div id="signLetter" class="bigletter">?</div><span id="signHold" class="hring big"><i></i></span>
-    <dl class="sread"><dt class="cap">Closest</dt><dd id="signClosest" class="mono">—</dd><dt class="cap">Confidence</dt><dd id="signConf" class="mono">—</dd></dl></div>
+    <dl class="sread"><dt class="cap">Closest</dt><dd id="signClosest" class="mono">—</dd><dt class="cap">Confidence</dt><dd id="signConf" class="mono">—</dd><dt class="cap">Top 2</dt><dd id="signTop2" class="mono">—</dd></dl></div>
    <ul id="signCard" class="signcard">
     <li data-l="A"><b>A</b>fist, thumb resting at the side</li><li data-l="B"><b>B</b>four fingers up together, thumb folded</li>
     <li data-l="D"><b>D</b>index up, rest curled, thumb folded</li><li data-l="I"><b>I</b>only the pinky up</li>
@@ -71,8 +71,9 @@
     <li data-l="V"><b>V</b>index + middle up, spread apart</li><li data-l="W"><b>W</b>index, middle, ring up; pinky curled</li>
     <li data-l="Y"><b>Y</b>thumb + pinky out, rest curled</li><li data-l=" "><b>␣</b>open hand with thumb out = space</li></ul></div>
   <div class="row"><div id="signText" class="typed"></div><button id="signClear" class="btn">Clear</button></div></div>
- <div class="mode hidden" id="mode-voice"><div class="mhead"><span class="idx">06</span><h2>Voice</h2><p>Press the button and allow the microphone (Chrome or Edge). Say: “next”, “back”, “draw”, “mouse”, “slides”, “sign”, “train”, “clear”, “stop”.</p></div>
-  <div class="row"><button id="voiceBtn" class="btn solid">● Start listening</button></div>
+ <div class="mode hidden" id="mode-voice"><div class="mhead"><span class="idx">06</span><h2>Voice</h2><p>Chrome or Edge only (Opera, Brave and Firefox have no working speech service). Press Start, allow the microphone. Say: “next”, “back”, “draw”, “mouse”, “slides”, “sign”, “train”, “clear”, “stop” — synonyms like “forward”, “previous”, “erase”, “pause” work too.</p></div>
+  <div class="row"><button id="voiceBtn" class="btn solid bigbtn">● Start listening</button><select id="voiceLang" class="mono"><option value="en-IN">English (India)</option><option value="en-US">English (US)</option><option value="en-GB">English (UK)</option></select></div>
+  <p id="voiceStatus" class="vstatus mono">—</p>
   <dl class="vout"><dt class="cap">Heard</dt><dd id="voiceText" class="mono">—</dd><dt class="cap">Did</dt><dd id="voiceCmd" class="mono">—</dd></dl></div>
  <div class="mode hidden" id="mode-os"><div class="mhead"><span class="idx">05</span><h2>OS Control</h2>
   <p>Run <code>python -m bridge</code> and open this page from <code>http://localhost:8000</code>. Push the lever up to arm (it links to the bridge by itself). Point moves the real cursor; a quick pinch clicks; a pinch held over 450 ms drags; a peace sign moved up or down scrolls.</p></div>
@@ -87,6 +88,8 @@
    <div class="row"><input id="gName" placeholder="Gesture name, e.g. rock"><button id="recBtn" class="btn solid">● Record 60</button></div>
    <div class="row"><label class="cap">k <input type="number" id="kVal" value="5" min="1" max="15"></label><label class="cap"><input type="checkbox" id="useCustom" checked> Use custom model live</label></div>
    <p class="mono sub">Prediction <b id="knnPred">—</b> <span id="knnConf"></span></p></div>
+  <div class="calib"><span class="cap idx">SIGN CALIBRATION</span><p class="sub">Hold a letter and press Calibrate: 40 samples are saved in this browser and used before the built-in templates.</p>
+   <div class="row"><select id="calibLetter" class="mono"><option value="A">A</option><option value="B">B</option><option value="D">D</option><option value="I">I</option><option value="L">L</option><option value="O">O</option><option value="V">V</option><option value="W">W</option><option value="Y">Y</option><option value=" ">space</option></select><button id="calibBtn" class="btn solid">● Calibrate</button><button id="calibReset" class="btn danger">Reset signs</button></div><p id="calibStatus" class="mono sub">—</p></div>
   <div class="dtakes"><span class="cap idx">SHOT LIST · SAVED TAKES</span><p id="trainStatus" class="mono sub">Samples stored locally (localStorage).</p><ol id="classList" class="rules"></ol>
    <div class="row"><button id="exportBtn" class="btn">Export JSON</button><label class="btn filebtn">Import JSON<input type="file" id="importFile" accept=".json" hidden></label><button id="resetBtn" class="btn danger">Reset</button></div></div>
  <div class="tune"><span class="cap idx">CURSOR FILTER · ONE EURO</span>
@@ -103,4 +106,4 @@
  <span class="mono foot">Deepanshu · 2026</span>
 </footer>
 <div id="pageCursor" class="pagecursor hidden"></div>
-<script type="module" src="js/app.js?v=8"></script></body></html>
+<script type="module" src="js/app.js?v=9"></script></body></html>

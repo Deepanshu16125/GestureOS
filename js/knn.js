@@ -1,9 +1,9 @@
 // Tiny k-NN classifier persisted in localStorage.
 const KEY='gestureos_knn_v1';
 export class KNN{
-  constructor(){this.data=[];this.load();}
-  load(){try{this.data=JSON.parse(localStorage.getItem(KEY))||[];}catch{this.data=[];}}
-  save(){localStorage.setItem(KEY,JSON.stringify(this.data));}
+  constructor(key=KEY){this.key=key;this.data=[];this.load();}
+  load(){try{this.data=JSON.parse(localStorage.getItem(this.key))||[];}catch{this.data=[];}}
+  save(){localStorage.setItem(this.key,JSON.stringify(this.data));}
   add(label,vec){this.data.push({l:label,v:vec.map(x=>+x.toFixed(4))});}
   classes(){const c={};for(const s of this.data)c[s.l]=(c[s.l]||0)+1;return c;}
   removeClass(l){this.data=this.data.filter(s=>s.l!==l);this.save();}

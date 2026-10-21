@@ -38,7 +38,13 @@ async def main():
       for(let i=0;i<14;i++){GestureOS.feed([H.make(H.POSES.open_palm,{cx:0.75-i*0.03})]);await sleep(20);}return {before:s0,after:GestureOS.slide};}""")
     R['sign']=await pg.evaluate("""async()=>{GestureOS.setMode('sign');for(const L of ['V','L','Y']){for(let i=0;i<70;i++){GestureOS.feed([H.make(H.LETTER_POSES[L])]);await sleep(16);}GestureOS.feed([]);await sleep(50);}
       return {typed:GestureOS.typed,closest:document.getElementById('signClosest').textContent};}""")
-    R['voice']=await pg.evaluate("()=>{GestureOS.setMode('voice');const a=GestureOS.voice('next slide please');const b=GestureOS.voice('draw');return {a,b,mode:GestureOS.mode,btn:!!document.getElementById('voiceBtn').onclick};}")
+    R['draw_tilt']=await pg.evaluate("""async()=>{GestureOS.setMode('draw');document.getElementById('clearDraw').click();
+      for(let i=0;i<40;i++){GestureOS.feed([H.hand({thumb:'in',fingers:[[50,12,5],'curl','curl','curl'],rot:20,cx:0.4+i*0.004})]);if(i%7==3)GestureOS.feed([H.hand({thumb:'in',fingers:[[50,12,5],'half','curl','curl'],rot:20,cx:0.4+i*0.004})]);await sleep(20);}
+      const a=GestureOS.drawnPixels();for(let i=0;i<20;i++){GestureOS.feed([H.make(H.POSES.fist,{cx:0.6-i*0.01})]);await sleep(20);}return {drawnTilted:a,afterFist:GestureOS.drawnPixels()-a};}""")
+    R['sign_calib']=await pg.evaluate("""async()=>{GestureOS.setMode('sign');const lms=[];for(let i=0;i<40;i++)lms.push(H.hand({thumb:'in',fingers:[[10,20,10],'half','curl','curl'],rot:i}));GestureOS.calibrateSign('D',lms);
+      document.getElementById('signText').textContent='';for(let i=0;i<70;i++){GestureOS.feed([H.hand({thumb:'in',fingers:[[10,20,10],'half','curl','curl'],rot:20})]);await sleep(16);}
+      const out={typed:GestureOS.typed,conf:document.getElementById('signConf').textContent,top2:document.getElementById('signTop2').textContent};localStorage.removeItem('gestureos_sign_v1');return out;}""")
+    R['voice']=await pg.evaluate("()=>{GestureOS.setMode('voice');const a=GestureOS.voice('next slide please');const b=GestureOS.voice('draw');const fz=['go forward','previous','erase it','paws','drawing','curser','slide show','nest'].map(GestureOS.matchVoice);return {a,b,fz,status:document.getElementById('voiceStatus').textContent,mode:GestureOS.mode,btn:!!document.getElementById('voiceBtn').onclick};}")
     # OS control: lever in Air Mouse mode connects, resumes, then moves + clicks
     await pg.evaluate("()=>GestureOS.setMode('cursor')")
     await pg.click('.lever'); await pg.wait_for_timeout(1500)

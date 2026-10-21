@@ -252,3 +252,12 @@ body.stack .g-rows li{min-height:28px;padding:3px 0}
 @media(max-height:760px){#mode-sign .mhead p{display:none}#mode-sign .signcard li{padding:3px 0}}
 .stage{overflow:hidden}
 #tabs{flex-wrap:nowrap;overflow:hidden;gap:2px 14px}#tabs button{white-space:nowrap}@media(max-width:1440px){#tabs{gap:2px 9px;margin-left:4px}#tabs button{font-size:13.5px;letter-spacing:.06em}.bezel-top{gap:12px}.tc{margin-left:8px}}
+/* v9 */
+.vstatus{margin:10px 0;padding:10px 12px;border:1px solid #2a2b26;background:#161714;color:#E4E2D4;font-size:14px;min-height:1.4em}
+.vstatus[data-s=on]{border-color:#C4A035;color:#C4A035}.vstatus[data-s=ok]{border-color:#9AA87A;color:#9AA87A}
+.vstatus[data-s=warn]{border-color:#C4A035;color:#E4E2D4}.vstatus[data-s=err]{border-color:#C43C2B;color:#C43C2B}
+#voiceLang,#calibLetter{background:#161714;color:#E4E2D4;border:1px solid #3a3b35;padding:6px}
+.calib{margin:12px 0;padding-top:10px;border-top:1px solid #2a2b26}
+#signCard li{position:relative}#signCard li[data-pct]:not([data-pct=""])::after{content:attr(data-pct);position:absolute;right:8px;top:50%;transform:translateY(-50%);font:12px 'IBM Plex Mono',monospace;color:#C4A035}
+#signCard li{background:linear-gradient(90deg,rgba(196,160,53,.18) calc(var(--m,0)*100%),transparent 0)}
+.pen{font-size:12px;padding:4px 8px;border:1px solid #3a3b35;color:#9AA87A}
