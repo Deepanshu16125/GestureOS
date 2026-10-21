@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GestureOS — On-Device Hand Gesture Control</title><link rel="stylesheet" href="css/style.css"></head><body>
+<header><div class="brand">✋ Gesture<span>OS</span></div>
+<nav id="tabs"><button data-mode="cursor" class="active">Air Mouse</button><button data-mode="draw">Air Draw</button><button data-mode="slides">Slides/Media</button><button data-mode="sign">Sign Letters</button><button data-mode="train">Train</button></nav>
+<button id="startBtn" class="primary">▶ Start Camera</button></header>
+<main>
+<section class="stage"><div class="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div id="camMsg">Click “Start Camera”. All processing happens locally — no video leaves your device.</div></div>
+<div id="gestureBadge">—</div></section>
+<section class="workspace">
+ <div class="panel mode" id="mode-cursor"><h2>Air Mouse</h2><p>Move your <b>index finger</b> to steer. <b>Pinch</b> (thumb+index) to click.</p>
+  <div id="pad" class="pad"><button class="target">A</button><button class="target">B</button><button class="target">C</button><button class="target">D</button><div id="vcursor"></div></div><p>Clicks: <b id="clickCount">0</b></p></div>
+ <div class="panel mode hidden" id="mode-draw"><h2>Air Draw</h2><p><b>Point</b> to draw, <b>open palm</b> to lift pen, <b>fist</b> held 1s clears.</p>
+  <div class="row"><label>Color <input type="color" id="penColor" value="#00e5ff"></label><label>Size <input type="range" id="penSize" min="2" max="30" value="6"></label><button id="clearDraw">Clear</button><button id="saveDraw">Save PNG</button></div>
+  <canvas id="drawCanvas" width="800" height="450"></canvas></div>
+ <div class="panel mode hidden" id="mode-slides"><h2>Slides & Media</h2><p><b>Swipe</b> left/right with open palm to change slide. <b>Thumbs up</b> = play, <b>fist</b> = pause, <b>peace</b> = toggle mute.</p>
+  <div id="slide" class="slide"></div><div class="row"><span id="mediaState">⏸ Paused</span><span id="muteState">🔊</span><div class="bar"><div id="mediaProg"></div></div></div></div>
+ <div class="panel mode hidden" id="mode-sign"><h2>Sign Letters (ASL subset)</h2><p>Hold a sign steady ~0.8s to type it. Supported: A, B, D, L, V, Y, I, W, O + <b>open palm</b> = space.</p>
+  <div id="signLetter" class="bigletter">?</div><div id="signText" class="typed"></div><button id="signClear">Clear text</button></div>
+ <div class="panel mode hidden" id="mode-train"><h2>Train Custom Gestures (k-NN)</h2>
+  <div class="row"><input id="gName" placeholder="Gesture name e.g. rock"><button id="recBtn" class="primary">● Record 60 samples</button></div>
+  <div class="row"><label>k <input type="number" id="kVal" value="5" min="1" max="15"></label><label><input type="checkbox" id="useCustom" checked> Use custom model in live recognition</label></div>
+  <p id="trainStatus">Samples stored locally in your browser (localStorage).</p><ul id="classList"></ul>
+  <div class="row"><button id="exportBtn">Export JSON</button><label class="filebtn">Import JSON<input type="file" id="importFile" accept=".json" hidden></label><button id="resetBtn" class="danger">Reset model</button></div>
+  <p>Prediction: <b id="knnPred">—</b> <span id="knnConf"></span></p></div>
+</section>
+<aside class="panel dash"><h3>Performance</h3><div class="stat"><span>FPS</span><b id="fps">0</b></div><div class="stat"><span>Inference</span><b id="lat">0 ms</b></div><div class="stat"><span>Hands</span><b id="hands">0</b></div><div class="stat"><span>Raw</span><b id="raw">—</b></div><div class="stat"><span>Confidence</span><b id="conf">—</b></div>
+<canvas id="fpsChart" width="260" height="80"></canvas><h3>Event log</h3><ul id="log"></ul></aside>
+</main><footer>GestureOS · Privacy-first on-device vision · MediaPipe Hands + k-NN · B.Tech CSE Project</footer>
+<script type="module" src="js/app.js"></script></body></html>
