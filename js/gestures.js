@@ -15,10 +15,13 @@ export function fingerStates(lm){
   for(let i=1;i<5;i++) up.push(d(lm[TIPS[i]],w)>d(lm[PIPS[i]],w)*1.12);
   return up;
 }
-export function classify(lm){
-  const s=d(lm[0],lm[9])||1e-6, u=fingerStates(lm), pinch=d(lm[4],lm[8])/s;
+/** Thumb–index distance normalized by wrist→middle-MCP length. */
+export const pinchRatio=lm=>d(lm[4],lm[8])/(d(lm[0],lm[9])||1e-6);
+/** pinchClosed: hysteresis state from PinchFSM (falls back to a fixed 0.18 band). */
+export function classify(lm,pinchClosed=null){
+  const u=fingerStates(lm), pinch=pinchRatio(lm);
   const [t,i,m,r,p]=u, n=u.filter(Boolean).length;
-  if(pinch<0.25 && !(m&&r&&p)) return {name:'pinch',conf:1-pinch*2};
+  if((pinchClosed??pinch<0.18) && !(m&&r&&p)) return {name:'pinch',conf:Math.max(.5,1-pinch*2)};
   if(n===5||(i&&m&&r&&p)) return {name:'open_palm',conf:.9};
   if(t&&!i&&!m&&!r&&!p) return {name: lm[4].y<lm[2].y?'thumbs_up':'thumbs_down',conf:.85};
   if(i&&m&&!r&&!p) return {name:'peace',conf:.85};
