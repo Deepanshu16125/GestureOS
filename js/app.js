@@ -1,4 +1,3 @@
-import {HandLandmarker,FilesetResolver} from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
 import {features,classify,signLetter,pinchRatio,Smoother,EMA} from './gestures.js';
 import {KNN} from './knn.js';
 import {BridgeClient} from './bridge.js';
@@ -26,6 +25,7 @@ const NAME=g=>g==='none'?'NO HAND':String(g).replace(/_/g,' ').toUpperCase();
 $('startBtn').onclick=async()=>{
   if(running)return;$('camMsg').textContent='Loading MediaPipe model…';
   try{
+    const {HandLandmarker,FilesetResolver}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
     const fs=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
     const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2});
     try{landmarker=await HandLandmarker.createFromOptions(fs,opts('GPU'));}catch{landmarker=await HandLandmarker.createFromOptions(fs,opts('CPU'));}
@@ -49,7 +49,13 @@ function loop(){
   if(video.currentTime!==lastVideoTime){lastVideoTime=video.currentTime;frameCt++;$('frameCt').textContent=String(frameCt).padStart(6,'0');
     ov.width=video.videoWidth;ov.height=video.videoHeight;
     const t0=performance.now(),res=landmarker.detectForVideo(video,t0),lat=performance.now()-t0;perf(lat);
-    octx.clearRect(0,0,ov.width,ov.height);const hands=res.landmarks||[];$('hands').textContent=hands.length;
+    processHands(res.landmarks||[]);
+  }
+  requestAnimationFrame(loop);
+}
+/** One frame of the gesture pipeline. Also driven by window.GestureOS.feed() for tests. */
+function processHands(hands){
+    octx.clearRect(0,0,ov.width,ov.height);$('hands').textContent=hands.length;
     let g='none',conf=0,lm=null;pinchEv=[];
     if(hands.length){hands.forEach(drawHand);lm=hands[0];const now=performance.now(),m=mapInner(lm[8].x,lm[8].y);curPos=cursorF.update(m.x,m.y,now);
       pinch.track(curPos,now);pinchEv=pinch.update(pinchRatio(lm),now);
@@ -66,35 +72,40 @@ function loop(){
     if(sm.label!==prevG){if(sm.label!=='none')log('Gesture: '+sm.label);prevG=sm.label;}
     updateHud(sm.label);
     handleMode(sm.label,lm);
-  }
-  requestAnimationFrame(loop);
+    return sm.label;
 }
-// ---------- Air Mouse
-const pad=$('pad'),vc=$('vcursor');let clicks=0;
-function airMouse(g,lm){if(!lm||!curPos)return;const r=pad.getBoundingClientRect();
-  const P=q=>({x:q.x*r.width,y:q.y*r.height}),p=P(curPos);vc.style.left=p.x+'px';vc.style.top=p.y+'px';
-  vc.classList.toggle('down',pinch.closed);const hit=q=>[...pad.querySelectorAll('.target')].find(t=>{const b=t.getBoundingClientRect(),x=r.left+q.x,y=r.top+q.y;return x>b.left&&x<b.right&&y>b.top&&y<b.bottom;});
-  const hov=hit(p);pad.querySelectorAll('.target').forEach(t=>t.classList.toggle('hover',t===hov));
-  for(const e of pinchEv)if(e.type==='up'&&e.click&&!e.lost){const q=P(pinch.downPos||curPos),t=hit(q);clickRing();
-    if(t){clicks++;$('clickCount').textContent=clicks;t.classList.add('hit');setTimeout(()=>t.classList.remove('hit'),300);log('Click on '+t.textContent);}}}
+// ---------- Air Mouse: the fingertip drives a page cursor; a pinch clicks the element under it.
+const pad=$('pad'),vc=$('vcursor'),pc=$('pageCursor');let clicks=0;
+pad.querySelectorAll('.target').forEach(t=>t.addEventListener('click',()=>{clicks++;$('clickCount').textContent=clicks;t.classList.add('hit');setTimeout(()=>t.classList.remove('hit'),300);log('Click on '+t.textContent);}));
+const toPage=q=>({x:q.x*innerWidth,y:q.y*innerHeight});
+function airMouse(g,lm){if(!lm||!curPos){pc.classList.add('hidden');return;}
+  const p=toPage(curPos);pc.classList.remove('hidden');pc.style.left=p.x+'px';pc.style.top=p.y+'px';pc.classList.toggle('down',pinch.closed);
+  const r=pad.getBoundingClientRect();vc.style.left=(p.x-r.left)+'px';vc.style.top=(p.y-r.top)+'px';
+  const under=document.elementFromPoint(p.x,p.y);pad.querySelectorAll('.target').forEach(t=>t.classList.toggle('hover',t===under));
+  for(const e of pinchEv)if(e.type==='up'&&e.click&&!e.lost){const q=toPage(pinch.downPos||curPos),el=document.elementFromPoint(q.x,q.y);clickRing();
+    if(el&&el!==document.body){el.click();if(el.matches('input,textarea'))el.focus();log('Air click → '+(el.id?'#'+el.id:el.tagName.toLowerCase()+(el.textContent?` "${el.textContent.trim().slice(0,16)}"`:'')));}}}
 // ---------- Air Draw
 const dc=$('drawCanvas'),dctx=dc.getContext('2d');let last=null,fistT=0;const dEma=new EMA(.5);
 dctx.lineCap='round';
 function airDraw(g,lm){if(!lm){last=null;return;}
   const p=dEma.update((1-lm[8].x)*dc.width,lm[8].y*dc.height);
-  if(g==='point'){if(last){dctx.strokeStyle=$('penColor').value;dctx.lineWidth=+$('penSize').value;dctx.beginPath();dctx.moveTo(last.x,last.y);dctx.lineTo(p.x,p.y);dctx.stroke();}last={...p};}
+  if(g==='pinch'||g==='point'){if(last){dctx.strokeStyle=$('penColor').value;dctx.lineWidth=+$('penSize').value;dctx.beginPath();dctx.moveTo(last.x,last.y);dctx.lineTo(p.x,p.y);dctx.stroke();}last={...p};}
   else last=null;
   if(g==='fist'){if(!fistT)fistT=performance.now();else if(performance.now()-fistT>1000){dctx.clearRect(0,0,dc.width,dc.height);fistT=0;log('Canvas cleared');}}else fistT=0;}
-$('clearDraw').onclick=()=>dctx.clearRect(0,0,dc.width,dc.height);
+const clearDraw=()=>{dctx.clearRect(0,0,dc.width,dc.height);log('Canvas cleared');};$('clearDraw').onclick=clearDraw;
 $('saveDraw').onclick=()=>{const a=document.createElement('a');a.download='airdraw.png';a.href=dc.toDataURL();a.click();};
 // ---------- Slides / Media
 const SLIDES=[['GestureOS','#161714','#E4E2D4'],['On-device ML, privacy first','#E4E2D4','#0C0D0B'],['21 landmarks per hand','#1C1D19','#C4A035'],['Custom gestures via k-NN','#C4A035','#0C0D0B'],['Thank you','#0C0D0B','#E4E2D4']];
 let si=0,playing=false,muted=false,prog=0,hist=[],cool=0;
-function showSlide(){$('slide').textContent=SLIDES[si][0];$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
+function showSlide(){$('slide').textContent=SLIDES[si][0];$('slideNo').textContent=(si+1)+' / '+SLIDES.length;$('slide').style.background=SLIDES[si][1];$('slide').style.color=SLIDES[si][2];}showSlide();
+const goSlide=k=>{si=(si+k+SLIDES.length)%SLIDES.length;showSlide();log('Slide '+(si+1)+'/'+SLIDES.length);};
+$('slidePrev').onclick=()=>goSlide(-1);$('slideNext').onclick=()=>goSlide(1);let edgeT=0,edgeDir=0;
 function slides(g,lm){const now=performance.now();
+  if(lm&&g==='point'){const x=1-lm[8].x,dir=x<0.25?-1:x>0.75?1:0;
+    if(dir&&dir===edgeDir){if(now-edgeT>500&&now>cool){goSlide(dir);cool=now+900;edgeT=now;}}else{edgeDir=dir;edgeT=now;}}else edgeDir=0;
   if(lm&&g==='open_palm'){hist.push({x:1-lm[0].x,t:now});hist=hist.filter(h=>now-h.t<400);
     if(hist.length>3&&now>cool){const dx=hist.at(-1).x-hist[0].x;
-      if(Math.abs(dx)>.18){si=(si+(dx>0?1:-1)+SLIDES.length)%SLIDES.length;showSlide();log('Swipe '+(dx>0?'→':'←')+' slide '+(si+1));hist=[];cool=now+700;}}}else hist=[];
+      if(Math.abs(dx)>.18){log('Swipe '+(dx>0?'→':'←'));goSlide(dx>0?1:-1);hist=[];cool=now+700;}}}else hist=[];
   if(g!==prevAct&&now>cool){if(g==='thumbs_up'){playing=true;log('Play');}if(g==='fist'){playing=false;log('Pause');}if(g==='peace'){muted=!muted;log(muted?'Mute':'Unmute');}}
   prevAct=g;$('mediaState').textContent=playing?'▶ Playing':'⏸ Paused';$('muteState').textContent=muted?'🔇':'🔊';
   if(playing){prog=(prog+.15)%100;$('mediaProg').style.width=prog+'%';}}
@@ -117,7 +128,8 @@ renderClasses();
 $('resetBtn').onclick=()=>{if(confirm('Delete all custom gestures?')){knn.reset();renderClasses();}};
 $('exportBtn').onclick=()=>{const a=document.createElement('a');a.download='gestureos-model.json';a.href=URL.createObjectURL(new Blob([knn.export()]));a.click();};
 $('importFile').onchange=async e=>{try{knn.import(await e.target.files[0].text());renderClasses();log('Model imported');}catch(err){alert(err.message);}};
-function handleMode(g,lm){if(mode==='cursor')airMouse(g,lm);else if(mode==='draw')airDraw(g,lm);else if(mode==='slides')slides(g,lm);else if(mode==='sign')sign(lm);else if(mode==='os')osControl(g,lm);}
+function handleMode(g,lm){if(mode==='cursor')airMouse(g,lm);else if(mode==='draw')airDraw(g,lm);else if(mode==='slides')slides(g,lm);else if(mode==='sign')sign(lm);else if(mode==='os')osControl(g,lm);
+  if(mode==='cursor'&&osToggle.checked)osControl(g,lm);}
 
 // ---------- HUD, legend, pinch meter, click ring
 const LEGEND={cursor:[['☝️','Point','move cursor'],['🤏','Pinch','click (hold = press)']],
@@ -125,14 +137,15 @@ const LEGEND={cursor:[['☝️','Point','move cursor'],['🤏','Pinch','click (h
  slides:[['🖐','Swipe','next / prev slide'],['👍','Thumbs up','play'],['✊','Fist','pause'],['✌️','Peace','mute']],
  sign:[['🤟','ASL sign','hold 0.8 s to type'],['🖐','Open palm','space']],
  train:[['●','Record','60 samples per class'],['🧠','k-NN','live prediction']],
+ voice:[['🎙','Say','next · back · draw · mouse · slides · clear · stop']],
  os:[['☝️','Point','move OS cursor'],['🤏','Pinch','click (200 ms lookback)'],['🤏⏱','Pinch > 450 ms','drag'],['✌️↕','Peace up/down','scroll'],['✊','Fist 1 s / Esc','pause'],['🖐','Palm 2 s','pause / re-enable']]};
-const MODE_NAME={cursor:'Air Mouse',draw:'Air Draw',slides:'Slides/Media',sign:'Sign Letters',train:'Train',os:'OS Control'};
+const MODE_NAME={voice:'Voice',cursor:'Air Mouse',draw:'Air Draw',slides:'Slides/Media',sign:'Sign Letters',train:'Train',os:'OS Control'};
 let legendMode=null;
 const GKEY=n=>{n=n.toLowerCase();return /pinch/.test(n)?'pinch':/point/.test(n)?'point':/palm|swipe/.test(n)?'open_palm':/fist/.test(n)?'fist':/thumbs/.test(n)?'thumbs_up':/peace/.test(n)?'peace':'';};
 function updateHud(g){$('hudMode').textContent=MODE_NAME[mode];$('hudGesture').textContent=NAME(g).toLowerCase();$('hudFps').textContent=String(Math.min(999,+$('fps').textContent||0)).padStart(3,'0');
   if(legendMode!==mode){legendMode=mode;$('legend').innerHTML=LEGEND[mode].map(([i,n,a],k)=>`<div data-g="${GKEY(n)}"><i>${String(k+1).padStart(2,'0')}</i>${n}<em>→ ${a}</em></div>`).join('');}
   $('legend').querySelectorAll('div').forEach(d=>d.classList.toggle('on',!!d.dataset.g&&d.dataset.g===g));}
-const PMAX=0.5;
+const PMAX=0.8;
 (()=>{const m=$('pinchMeter');for(const [v,c] of [[pinch.close,'close'],[pinch.open,'open']]){const l=document.createElement('i');l.className='thr '+c;l.style.left=v/PMAX*100+'%';l.title=c+' '+v;m.append(l);}})();
 function updatePinchMeter(r,closed){$('pinchFill').style.width=(r==null?0:Math.min(1,r/PMAX)*100)+'%';$('pinchMeter').classList.toggle('closed',closed);$('pinchVal').textContent=r==null?'—':r.toFixed(2);}
 function clickRing(){if(!curPos)return;const w=document.querySelector('.camwrap'),el=document.createElement('div');el.className='ring';
@@ -143,9 +156,10 @@ const bridge=new BridgeClient();
 const killBtn=$('killBtn'),osToggle=$('osEnable');
 let bridgeState='disconnected',pauseReason='';
 const controlling=()=>bridge.ready&&!bridge.killed&&osToggle.checked;
-function renderChip(){const c=$('bridgeChip');let cls='off',t='OS: off';
-  if(bridgeState==='connecting'){cls='connecting';t='OS: connecting…';}
-  else if(bridge.ready){if(controlling()){cls='live';t='OS: CONTROLLING';}else if(osToggle.checked){cls='connecting';t='OS: resuming…';}else{cls='paused';t='OS: paused'+(pauseReason?' ('+pauseReason+')':'');}}
+function renderChip(){const c=$('bridgeChip');let cls='off',t='NO BRIDGE';
+  if(bridgeState==='connecting'){cls='connecting';t='CONNECTING…';}
+  else if(bridge.ready){if(controlling()){cls='live';t='CONNECTED · LIVE';}else if(osToggle.checked){cls='connecting';t='RESUMING…';}else{cls='paused';t='CONNECTED · PAUSED'+(pauseReason?' ('+pauseReason+')':'');}}
+  $('bridgeState').textContent=t;
   c.className='chip '+cls;c.textContent=t;const armed=controlling();document.body.classList.toggle('armed',armed);
   $('armCap').textContent=armed?'OS control live · real cursor':(bridge.ready?'Bridge linked · pull the RUN lever to arm':'OS control off · link the bridge first');
   $('hudBackend').textContent=bridge.ready?bridge.backend:'—';}
@@ -157,8 +171,8 @@ bridge.addListener('state',({killed,reason})=>{
   if(killed){releaseMouse(false);pauseReason=reason;if(osToggle.checked){osToggle.checked=false;log(`OS control paused by bridge (${reason}). Re-enable to continue.`);}else log(`Bridge paused (${reason})`);}
   else{pauseReason='';log('Bridge resumed');}renderChip();});
 bridge.addListener('status',st=>{bridgeState=st;
-  if(st!=='connected'&&st!=='killed'){$('ping').textContent='—';releaseMouse(false);if(osToggle.checked){osToggle.checked=false;}}renderChip();});
-osToggle.onchange=()=>{if(osToggle.checked){if(bridge.ready){bridge.resume();log('OS control enabled');}else{log('Connect the bridge first');osToggle.checked=false;}}else pauseOS('toggle');renderChip();};
+  if(st==='disconnected'||st==='error'){if(osToggle.checked)log('No bridge at '+$('bridgeUrl').value+' — run: python -m bridge');$('ping').textContent='—';releaseMouse(false);if(osToggle.checked){osToggle.checked=false;}}renderChip();});
+osToggle.onchange=()=>{if(osToggle.checked){if(bridge.ready){bridge.resume();log('OS control enabled');}else{log('Lever on → connecting to bridge…');bridge.connect($('bridgeUrl').value.trim());}}else pauseOS('toggle');renderChip();};
 $('bridgeConnect').onclick=()=>bridge.connect($('bridgeUrl').value.trim());
 $('bridgeDisconnect').onclick=()=>{pauseOS(null);bridge.disconnect();};
 killBtn.onclick=()=>pauseOS('KILL button');
@@ -195,5 +209,23 @@ function osControl(g,lm){
   else{scrollY=null;scrollAcc=0;}
 }
 renderChip();
+// ---------- Voice (Web Speech API; Chrome/Edge)
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,listening=false;
+const VOICE=[[/\b(next|forward)\b/,()=>{goSlide(1);return 'next slide';}],[/\b(back|previous|prev)\b/,()=>{goSlide(-1);return 'previous slide';}],
+ [/\bclear\b/,()=>{clearDraw();return 'clear canvas';}],[/\b(stop|pause|kill)\b/,()=>{pauseOS('voice');return 'pause OS control';}],
+ [/\bdraw/,()=>{tab('draw');return 'Air Draw';}],[/\bmouse\b/,()=>{tab('cursor');return 'Air Mouse';}],[/\bslides?\b/,()=>{tab('slides');return 'Slides';}],
+ [/\bsign\b/,()=>{tab('sign');return 'Sign';}],[/\btrain/,()=>{tab('train');return 'Train';}]];
+function voiceCommand(text){const t=text.toLowerCase();$('voiceText').textContent='“'+text+'”';
+  for(const [re,f] of VOICE)if(re.test(t)){const r=f();$('voiceCmd').textContent=r;log('Voice: '+r);return r;}$('voiceCmd').textContent='not a command';return null;}
+$('voiceBtn').onclick=()=>{if(!SR){$('voiceCmd').textContent='Speech recognition is not available in this browser (use Chrome or Edge).';return;}
+  if(listening){rec.stop();return;}
+  rec=new SR();rec.lang='en-IN';rec.continuous=true;rec.interimResults=false;
+  rec.onresult=e=>voiceCommand(e.results[e.results.length-1][0].transcript.trim());
+  rec.onerror=e=>{$('voiceCmd').textContent='mic error: '+e.error;};
+  rec.onend=()=>{listening=false;$('voiceBtn').textContent='● Start listening';$('voiceBtn').classList.remove('on');};
+  rec.start();listening=true;$('voiceBtn').textContent='■ Stop listening';$('voiceBtn').classList.add('on');log('Voice: listening');};
+// ---------- Test hook: replay synthetic landmarks without a camera
+window.GestureOS={feed:(hands)=>processHands(hands||[]),setMode:m=>tab(m),voice:voiceCommand,bridge,get mode(){return mode;},get clicks(){return clicks;},get slide(){return si;},
+  drawnPixels:()=>{const d=dctx.getImageData(0,0,dc.width,dc.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;}};
 // ---------- PWA
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(()=>log('Offline cache ready (service worker)')).catch(e=>console.warn('SW',e));

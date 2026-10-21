@@ -22,11 +22,11 @@ export class OneEuro2D{
 /** Map the inner `frac` of the camera frame to 0..1 (screen), mirroring x. */
 export function mapInner(lmx,lmy,frac=0.7){const m=(1-frac)/2,c=v=>Math.min(1,Math.max(0,v));return {x:c((1-lmx-m)/frac),y:c((lmy-m)/frac)};}
 /**
- * Pinch FSM with hysteresis on ratio = d(thumbTip,indexTip)/d(wrist,middleMCP).
+ * Pinch FSM with hysteresis on ratio = 2D d(thumbTip,indexTip)/handSize (see gestures.js); enter < 0.35, exit > 0.5.
  * Emits: 'down' on close (with the cursor position from ~lookbackMs earlier), 'drag' once held > dragMs, 'up' on open.
  */
 export class PinchFSM{
-  constructor({close=0.18,open=0.23,lookbackMs=200,dragMs=450}={}){Object.assign(this,{close,open,lookbackMs,dragMs});this.closed=false;this.dragging=false;this.t0=0;this.hist=[];this.ratio=null;this.downPos=null;}
+  constructor({close=0.35,open=0.5,lookbackMs=200,dragMs=450}={}){Object.assign(this,{close,open,lookbackMs,dragMs});this.closed=false;this.dragging=false;this.t0=0;this.hist=[];this.ratio=null;this.downPos=null;}
   track(pos,t){this.hist.push({t,pos});while(this.hist.length&&t-this.hist[0].t>1000)this.hist.shift();}
   posAt(t){let best=this.hist[0]?.pos||null;for(const h of this.hist){if(h.t<=t)best=h.pos;else break;}return best;}
   update(ratio,t=performance.now()){

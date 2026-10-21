@@ -133,3 +133,12 @@ body.drawer-open .drawer{transform:none}
 #fpsChart{border-bottom:1px solid var(--line-2)}
 .bridgev{flex-wrap:nowrap}.bridgev input{width:150px;min-width:0;flex:1}
 .mhead p{max-width:none;padding-right:18%}.dlive .mhead p{padding-right:0}
+/* v2.1: page cursor, voice, smaller gate so the active mode is visible without scrolling */
+.pagecursor{position:fixed;z-index:45;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid var(--accent);border-radius:50%;pointer-events:none;box-shadow:0 0 0 1px #000}
+.pagecursor.down{background:var(--accent)}
+.camwrap{width:min(100%,calc(50vh * 16 / 9))}
+.vf{min-height:0}
+.vout{display:grid;grid-template-columns:90px 1fr;gap:8px 14px;margin:16px 0}.vout dd{margin:0;font-size:18px;color:var(--ink)}
+#voiceBtn.on{background:var(--alert);border-color:var(--alert);color:var(--ink)}
+#slideNo{font-size:14px}
+.camwrap .fpsbox{right:18px;top:14px}

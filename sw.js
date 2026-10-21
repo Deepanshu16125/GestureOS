@@ -1,5 +1,5 @@
 // GestureOS service worker: precache app shell + MediaPipe runtime/model, serve cache-first (offline after first load).
-const VER='gestureos-v4';
+const VER='gestureos-v5';
 const SHELL=['./','index.html','css/style.css','js/app.js','js/gestures.js','js/knn.js','js/filters.js','js/bridge.js','manifest.webmanifest','icons/icon.svg'];
 const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/';
 const REMOTE=[MP+'vision_bundle.mjs',MP+'wasm/vision_wasm_internal.js',MP+'wasm/vision_wasm_internal.wasm',MP+'wasm/vision_wasm_nosimd_internal.js',MP+'wasm/vision_wasm_nosimd_internal.wasm',

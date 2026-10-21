@@ -20,15 +20,19 @@ class DryRunBackend:
 
     def move(self, x, y):
         self.calls.append(("move", x, y))
+        log.info("dry-run move %d,%d", x, y)
 
     def click(self, button, double=False):
         self.calls.append(("click", button, double))
+        log.info("dry-run click %s", button)
 
     def mouse_down(self, button):
         self.calls.append(("mouseDown", button))
+        log.info("dry-run mouseDown %s", button)
 
     def mouse_up(self, button):
         self.calls.append(("mouseUp", button))
+        log.info("dry-run mouseUp %s", button)
 
     def scroll(self, dx, dy):
         self.calls.append(("scroll", dx, dy))

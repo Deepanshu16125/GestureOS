@@ -15,18 +15,28 @@ export function fingerStates(lm){
   for(let i=1;i<5;i++) up.push(d(lm[TIPS[i]],w)>d(lm[PIPS[i]],w)*1.12);
   return up;
 }
-/** Thumb–index distance normalized by wrist→middle-MCP length. */
-export const pinchRatio=lm=>d(lm[4],lm[8])/(d(lm[0],lm[9])||1e-6);
-/** pinchClosed: hysteresis state from PinchFSM (falls back to a fixed 0.18 band). */
+const d2=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y); // 2D: MediaPipe z is on a different scale and inflated pinch distances
+/** Hand size: the larger of wrist→middle-MCP and palm width (index MCP→pinky MCP), so it survives tilt. */
+export const handSize=lm=>Math.max(d2(lm[0],lm[9]),d2(lm[5],lm[17]))||1e-6;
+/** Thumb-tip(4)→index-tip(8) distance / hand size. Invariant to mirroring and left/right hand. */
+export const pinchRatio=lm=>d2(lm[4],lm[8])/handSize(lm);
+export const PINCH_ENTER=0.35, PINCH_EXIT=0.5;
+/** A finger is curled when its tip is closer to the wrist than its PIP joint. Index order: 1=index..4=pinky. */
+export const curled=(lm,i)=>d2(lm[TIPS[i]],lm[0])<d2(lm[PIPS[i]],lm[0]);
+/** pinchClosed: hysteresis state from PinchFSM; without it a fixed enter threshold is used. */
 export function classify(lm,pinchClosed=null){
   const u=fingerStates(lm), pinch=pinchRatio(lm);
   const [t,i,m,r,p]=u, n=u.filter(Boolean).length;
-  if((pinchClosed??pinch<0.18) && !(m&&r&&p)) return {name:'pinch',conf:Math.max(.5,1-pinch*2)};
+  const c=[1,2,3,4].map(k=>curled(lm,k)), allCurled=c.every(Boolean), mrpCurled=c[1]&&c[2]&&c[3];
+  // 1) pinch first: thumb and index tips together, but the other three fingers are not all curled (that is a fist).
+  if((pinchClosed??pinch<PINCH_ENTER) && !mrpCurled) return {name:'pinch',conf:Math.max(.5,Math.min(1,1-pinch))};
+  // 2) fist: every fingertip curled past its PIP.
+  if(allCurled) return {name:'fist',conf:.9};
   if(n===5||(i&&m&&r&&p)) return {name:'open_palm',conf:.9};
   if(t&&!i&&!m&&!r&&!p) return {name: lm[4].y<lm[2].y?'thumbs_up':'thumbs_down',conf:.85};
   if(i&&m&&!r&&!p) return {name:'peace',conf:.85};
   if(i&&!m&&!r&&!p) return {name:'point',conf:.85};
-  if(n===0) return {name:'fist',conf:.9};
+  if(n===0) return {name:'fist',conf:.8};
   if(i&&p&&!m&&!r) return {name:'rock',conf:.75};
   return {name:'unknown',conf:.3};
 }
